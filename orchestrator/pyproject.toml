@@ -1,0 +1,29 @@
+[project]
+name = "fastapi-orchestrator"
+version = "0.1.0"
+description = "FastAPI API Orchestrator"
+readme = "README.md"
+requires-python = ">=3.14" 
+dependencies = [
+    # Web framework
+    "fastapi==0.136.0",
+    "uvicorn[standard]==0.45.0",
+    "python-multipart==0.0.26",
+    "httpx==0.28.1",
+    "jinja2==3.1.6",
+
+    # Database
+    "sqlalchemy==2.0.49",
+    "asyncpg==0.31.0",
+    "alembic==1.18.4",
+
+    # Validation & settings
+    "pydantic[email]==2.13.3",
+    "pydantic-settings==2.14.0",
+
+    # Security
+    "argon2-cffi==25.1.0",
+
+    # Logging
+    "structlog==25.5.0",
+]
