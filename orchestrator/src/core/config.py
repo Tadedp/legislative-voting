@@ -1,5 +1,4 @@
 from enum import StrEnum
-from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -36,15 +35,16 @@ class DatabaseSettings(BaseSettings):
     
     HOST: str = "localhost"
     PORT: int = 5432
-    NAME: str = "dbname"
-    USER: str = "dbuser"
-    PASSWORD: str = "dbpassword"
+    NAME: str = "orchestrator_db"
+    USER: str = "orchestrator_user"
+    PASSWORD: str = "orchestrator_password"
     POOL_MIN_SIZE: int = 5
     POOL_MAX_SIZE: int = 20
+    POOL_TIMEOUT_SECONDS: int = 5
+    POOL_RECYCLE_SECONDS: int = 1800
 
     @property
-    def DB_URI(self) -> str:
-        """Build the asyncpg-compatible URI for SQLAlchemy."""
+    def URI(self) -> str:
         return (
             f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}"
             f"@{self.HOST}:{self.PORT}/{self.NAME}"
@@ -76,7 +76,7 @@ class LoggingSettings(BaseSettings):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file="../../.env",
         env_file_encoding="utf-8",
         env_ignore_empty=True, 
         extra="ignore",
@@ -88,8 +88,4 @@ class Settings(BaseSettings):
     security: SecuritySettings = SecuritySettings()
     logging: LoggingSettings = LoggingSettings()
 
-@lru_cache(maxsize=1)
-def _get_settings() -> Settings:
-    return Settings()
-
-settings: Settings = _get_settings()
+settings: Settings = Settings()
