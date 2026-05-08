@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 
 from src.api.dependencies.auth_deps import get_current_user, check_access, get_device_by_token
 from src.api.dependencies.common_deps import DbSessionDep
@@ -10,6 +10,7 @@ from src.api.exceptions import (
     NotFoundException,
     UnauthorizedException,
 )
+from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.schemas.legislative_session_schemas import (
     CurrentLegislativeSessionResponse,
@@ -199,6 +200,7 @@ async def set_ephemeral_key(
 )
 async def update_legislative_session_status(
     db_session: DbSessionDep,
+    background_tasks: BackgroundTasks,
     legislative_session_id: uuid.UUID,
     body: LegislativeSessionStatusUpdate,
 ) -> LegislativeSessionResponse:
@@ -209,4 +211,17 @@ async def update_legislative_session_status(
     except ValueError as exc:
         raise ConflictException(str(exc))
     
-    return LegislativeSessionResponse.model_validate(legislative_session)
+    response = LegislativeSessionResponse.model_validate(legislative_session)
+
+    background_tasks.add_task(
+        manager.broadcast,
+        "SESSION_STATUS_CHANGED",
+        {
+            "session_id": str(legislative_session_id),
+            "new_status": body.status.value,
+            "opened_at": response.opened_at.isoformat() if response.opened_at else None,
+            "closed_at": response.closed_at.isoformat() if response.closed_at else None,
+        },
+    )
+
+    return response

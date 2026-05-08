@@ -1,11 +1,12 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from src.api.dependencies.auth_deps import get_current_user, check_access
 from src.api.dependencies.common_deps import DbSessionDep
 from src.api.exceptions import BadRequestException, ConflictException, NotFoundException
+from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.schemas.motion_schemas import (
     MotionCreate,
@@ -20,7 +21,7 @@ motion_router = APIRouter(
 )
 
 @motion_router.get(
-    "/legislative-sessions/{session_id}/motions",
+    "/legislative-sessions/{legislative_session_id}/motions",
     response_model=list[MotionResponse],
     summary="List motions in a session",
     description="Returns all active motions belonging to a session.",
@@ -28,17 +29,17 @@ motion_router = APIRouter(
 )
 async def list_motions(
     db_session: DbSessionDep,
-    session_id: uuid.UUID,
+    legislative_session_id: uuid.UUID,
 ) -> list[MotionResponse]:
     try:
-        motions = await motion_service.list_motions_by_session(db_session, session_id)
+        motions = await motion_service.list_motions_by_session(db_session, legislative_session_id)
     except ValueError as exc:
         raise NotFoundException(str(exc))
     
     return [MotionResponse.model_validate(m) for m in motions]
 
 @motion_router.post(
-    "/legislative-sessions/{session_id}/motions",
+    "/legislative-sessions/{legislative_session_id}/motions",
     response_model=MotionResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a motion",
@@ -47,13 +48,13 @@ async def list_motions(
 )
 async def create_motion(
     db_session: DbSessionDep,
-    session_id: uuid.UUID,
+    legislative_session_id: uuid.UUID,
     body: MotionCreate,
 ) -> MotionResponse:
     try:
         motion = await motion_service.create_motion(
             db_session,
-            session_id=session_id,
+            session_id=legislative_session_id,
             title=body.title,
             is_nominal=body.is_nominal,
         )
@@ -132,6 +133,7 @@ async def delete_motion(
 )
 async def update_motion_status(
     db_session: DbSessionDep,
+    background_tasks: BackgroundTasks,
     motion_id: uuid.UUID,
     body: MotionStatusUpdate,
 ) -> MotionResponse:
@@ -142,7 +144,19 @@ async def update_motion_status(
     except ValueError as exc:
         raise ConflictException(str(exc))
     
-    return MotionResponse.model_validate(motion)
+    response = MotionResponse.model_validate(motion)
+    
+    background_tasks.add_task(
+        manager.broadcast,
+        "MOTION_STATUS_CHANGED",
+        {
+            "motion_id": str(motion_id),
+            "new_status": body.status.value,
+            "legislative_session_id": str(response.legislative_session_id),
+        },
+    )
+    
+    return response
 
 @motion_router.post(
     "/motions/{motion_id}/abort",
@@ -156,6 +170,7 @@ async def update_motion_status(
 )
 async def abort_motion(
     db_session: DbSessionDep,
+    background_tasks: BackgroundTasks,
     motion_id: uuid.UUID,
 ) -> MotionResponse:
     try:
@@ -163,4 +178,15 @@ async def abort_motion(
     except ValueError as exc:
         raise ConflictException(str(exc))
     
-    return MotionResponse.model_validate(motion)
+    response = MotionResponse.model_validate(motion)
+    
+    background_tasks.add_task(
+        manager.broadcast,
+        "MOTION_ABORTED",
+        {
+            "motion_id": str(motion_id),
+            "legislative_session_id": str(response.legislative_session_id),
+        },
+    )
+
+    return response

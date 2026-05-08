@@ -14,6 +14,8 @@ from src.api.routers.legislative_session_router import legislative_session_route
 from src.api.routers.legislator_router import legislator_router
 from src.api.routers.motion_router import motion_router
 from src.api.routers.user_router import user_router
+from src.api.routers.websocket_router import websocket_router
+from src.api.routers.vote_router import vote_router
 
 log = get_logger(__name__)
 
@@ -70,3 +72,5 @@ router.include_router(legislative_session_router)
 router.include_router(legislator_router)
 router.include_router(motion_router)
 router.include_router(user_router)
+router.include_router(websocket_router)
+router.include_router(vote_router)
