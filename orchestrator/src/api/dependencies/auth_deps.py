@@ -43,7 +43,7 @@ def check_access(
     async def _check_role(
         current_user: CurrentUserDep,
     ) -> SystemUser:
-        if current_user.role is not SystemUserRole.ADMIN and current_user.role not in roles:
+        if current_user.role not in roles:
             log.warning(
                 "auth.forbidden",
                 allowed_roles=allowed_roles,

@@ -1,9 +1,12 @@
+import uuid
 from datetime import datetime
+from re import match
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic.functional_validators import AfterValidator
 
-from src.infrastructure.models.usuario import UserRole
+from src.models.system_user import SystemUserRole
 
 _PASSWORD_PATTERN = (
     r"^"
@@ -15,6 +18,14 @@ _PASSWORD_PATTERN = (
     r"$"
 )
 
+def validate_password(password: str) -> str:
+    if not match(_PASSWORD_PATTERN, password):
+        raise ValueError(
+            "The password must be between 8 and 64 characters long, and include at least "
+            "one uppercase letter, one lowercase letter, one number, and one special character."
+        )
+    return password
+
 class UserCreate(BaseModel):
     username: Annotated[
         str,
@@ -22,52 +33,27 @@ class UserCreate(BaseModel):
     ]
     password: Annotated[
         str,
-        Field(pattern=_PASSWORD_PATTERN),
+        AfterValidator(validate_password),
     ]
-    nombre: Annotated[
-        str,
-        Field(min_length=1, max_length=64),
-    ]
-    apellido: Annotated[
-        str,
-        Field(min_length=1, max_length=64),
-    ]
-    rol: UserRole
-    
+    role: SystemUserRole
 
 class UserUpdate(BaseModel):
     username: Annotated[
         str | None,
         Field(default=None, min_length=1, max_length=64),
     ]
-    nombre: Annotated[
+    password: Annotated[
         str | None,
-        Field(default=None, min_length=1, max_length=64),
-    ]
-    apellido: Annotated[
-        str | None,
-        Field(default=None, min_length=1, max_length=64),
-    ]
+        AfterValidator(validate_password),
+    ] = None
+    role: SystemUserRole | None = None
 
-class PasswordUpdate(BaseModel):
-    new_password: Annotated[
-        str,
-        Field(pattern=_PASSWORD_PATTERN),
-    ]
-
-class UserAdminUpdate(UserUpdate):
-    rol: UserRole | None = None
-    
-class UserRead(BaseModel):
+class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
+    id: uuid.UUID
     username: str
-    nombre: str
-    apellido: str
-    
-class UserAdminRead(UserRead):
-    id: int
-    rol: str
+    role: SystemUserRole
     created_at: datetime
-    updated_at: datetime | None
-    deleted_at: datetime | None
+    updated_at: datetime | None = None
+    deleted_at: datetime | None = None

@@ -101,7 +101,7 @@ class InternalServerException(DetailedHTTPException):
         )  
 
 class ServiceUnavailableException(DetailedHTTPException):
-    """503 — A required downstream dependency (DB, Redis) is unavailable."""
+    """503 — A required downstream dependency is unavailable."""
     def __init__(
         self, 
         detail: str | None = None,

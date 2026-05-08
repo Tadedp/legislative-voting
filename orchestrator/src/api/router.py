@@ -10,6 +10,10 @@ from structlog import get_logger
 
 from src.api.routers.auth_router import auth_router
 from src.api.routers.health_router import health_router
+from src.api.routers.legislative_session_router import legislative_session_router
+from src.api.routers.legislator_router import legislator_router
+from src.api.routers.motion_router import motion_router
+from src.api.routers.user_router import user_router
 
 log = get_logger(__name__)
 
@@ -62,3 +66,7 @@ router = APIRouter(route_class=LoggingRoute)
 
 router.include_router(auth_router)
 router.include_router(health_router)
+router.include_router(legislative_session_router)
+router.include_router(legislator_router)
+router.include_router(motion_router)
+router.include_router(user_router)
