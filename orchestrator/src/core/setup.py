@@ -1,14 +1,12 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
-from typing import Any
 
 from structlog import get_logger
-from fastapi import FastAPI, status
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import settings
-from src.infrastructure.database import engine_health_check, db_engine
-from src.schemas.common_schemas import ResponseEnvelope
+from src.core.database import engine_health_check, db_engine
 
 log = get_logger(__name__)
 
@@ -47,24 +45,5 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
-
-    @app.get(
-        "", 
-        status_code=status.HTTP_204_NO_CONTENT,
-    )
-    async def liveness() -> None:
-        return None
-
-    @app.get(
-        "/ready", 
-        status_code=status.HTTP_200_OK,
-        response_model=ResponseEnvelope[dict[str, Any]],
-    )
-    async def readiness() -> dict[str, Any]:
-        db_healthy = await engine_health_check()
-
-        return {
-            "data": {"db_healthy": db_healthy}
-        }
 
     return app

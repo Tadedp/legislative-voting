@@ -1,6 +1,9 @@
 from enum import StrEnum
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DOTENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 
 class EnvironmentOption(StrEnum):
     DEVELOPMENT = "development"
@@ -15,6 +18,10 @@ class LogLevelOption(StrEnum):
 
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
+        env_file=DOTENV_PATH,
+        env_file_encoding="utf-8",
+        env_ignore_empty=True, 
+        populate_by_name=True,
         env_prefix="APP_", 
         extra="ignore", 
     )
@@ -29,6 +36,10 @@ class AppSettings(BaseSettings):
 
 class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
+        env_file=DOTENV_PATH,
+        env_file_encoding="utf-8",
+        env_ignore_empty=True, 
+        populate_by_name=True,
         env_prefix="DB_", 
         extra="ignore", 
     )
@@ -42,7 +53,8 @@ class DatabaseSettings(BaseSettings):
     POOL_MAX_SIZE: int = 20
     POOL_TIMEOUT_SECONDS: int = 5
     POOL_RECYCLE_SECONDS: int = 1800
-
+    STATEMENT_TIMEOUT_MS: int = 5000
+    
     @property
     def URI(self) -> str:
         return (
@@ -52,6 +64,10 @@ class DatabaseSettings(BaseSettings):
 
 class SecuritySettings(BaseSettings):
     model_config = SettingsConfigDict(
+        env_file=DOTENV_PATH,
+        env_file_encoding="utf-8",
+        env_ignore_empty=True, 
+        populate_by_name=True,
         env_prefix="", 
         extra="ignore", 
     )
@@ -67,6 +83,10 @@ class SecuritySettings(BaseSettings):
 
 class LoggingSettings(BaseSettings):
     model_config = SettingsConfigDict(
+        env_file=DOTENV_PATH,
+        env_file_encoding="utf-8",
+        env_ignore_empty=True, 
+        populate_by_name=True,
         env_prefix="LOG_", 
         extra="ignore", 
     )
@@ -75,14 +95,6 @@ class LoggingSettings(BaseSettings):
     SERVICE_NAME: str = "orchestrator"
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file="../../.env",
-        env_file_encoding="utf-8",
-        env_ignore_empty=True, 
-        extra="ignore",
-        populate_by_name=True,
-    )
-
     app: AppSettings = AppSettings()
     db: DatabaseSettings = DatabaseSettings()
     security: SecuritySettings = SecuritySettings()
