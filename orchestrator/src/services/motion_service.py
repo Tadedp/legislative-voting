@@ -21,7 +21,7 @@ async def list_motions_by_session(
 async def get_motion(db: AsyncSession, motion_id: uuid.UUID) -> Motion:
     motion = await motion_repository.get_by_id(db, motion_id)
 
-    if motion is None or motion.deleted_at is None:
+    if motion is None or motion.deleted_at is not None:
         raise ValueError("Motion not found.")
 
     return motion

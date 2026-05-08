@@ -9,6 +9,7 @@ from src.core.database import db_session_factory
 async def get_db_session() -> AsyncIterator[AsyncSession]:
     async with db_session_factory() as session:
         yield session
+        await session.commit()
 
 class PaginationParams:
     __slots__ = ("page", "page_size", "order_by", "order_dir")

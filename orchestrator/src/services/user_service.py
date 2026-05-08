@@ -74,6 +74,7 @@ async def update_user(
         setattr(user, field, value)
 
     await db.flush()
+    await db.refresh(user)
     return user
 
 async def soft_delete_user(db: AsyncSession, user_id: uuid.UUID) -> SystemUser:
@@ -84,4 +85,5 @@ async def soft_delete_user(db: AsyncSession, user_id: uuid.UUID) -> SystemUser:
 
     user.deleted_at = datetime.now(timezone.utc)
     await db.flush()
+    await db.refresh(user)
     return user

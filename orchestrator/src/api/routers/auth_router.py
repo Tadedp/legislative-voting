@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
-from src.api.dependencies.auth_deps import CurrentUserDep
+from src.api.dependencies.auth_deps import get_current_user
 from src.api.dependencies.common_deps import DbSessionDep
 from src.api.exceptions import UnauthorizedException
 from src.core.config import settings
@@ -57,11 +57,11 @@ async def login(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="System user logout",
     description="Destroy the current session and clear the cookie.",
+    dependencies=[Depends(get_current_user)],
 )
 async def logout(
     request: Request,
     response: Response,
-    current_user: CurrentUserDep,
     db_session: DbSessionDep,
 ) -> None:
     session_id: str | None = request.cookies.get(settings.security.SESSION_COOKIE_NAME)

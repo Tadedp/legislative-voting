@@ -83,6 +83,7 @@ async def update_legislator(
         setattr(legislator, field, value)
 
     await db.flush()
+    await db.refresh(legislator)
     return legislator
 
 async def soft_delete_legislator(
@@ -102,4 +103,5 @@ async def soft_delete_legislator(
         legislator.device.deleted_at = now
 
     await db.flush()
+    await db.refresh(legislator)
     return legislator

@@ -45,7 +45,7 @@ async def get_session_with_user(
     if session_row is None:
         return None
 
-    if not session_row.user.deleted_at is None:
+    if session_row.user.deleted_at is not None:
         return None
 
     return session_row

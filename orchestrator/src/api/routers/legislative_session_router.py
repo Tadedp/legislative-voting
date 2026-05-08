@@ -55,7 +55,7 @@ async def get_current_legislative_session(
 ) -> CurrentLegislativeSessionResponse:
     # Attempt device-token auth first, then fall back to session cookie.
     device_token = request.headers.get("x-device-token")
-    session_cookie = request.cookies.get("legislative_session_id")
+    session_cookie = request.cookies.get("session_id")
 
     if device_token is None and session_cookie is None:
         raise UnauthorizedException(
@@ -68,7 +68,7 @@ async def get_current_legislative_session(
             x_device_token=device_token, db_session=db_session,
         )
     else:
-        user = await get_current_user(request=request, db_session=db_session) # type: ignore
+        user = await get_current_user(request=request, db_session=db_session, cookie_token=session_cookie) # type: ignore
 
     try:
         session, active_motion = (
