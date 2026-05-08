@@ -20,6 +20,8 @@ dependencies = [
     "pydantic-settings==2.14.0",
 
     # Security
+    "bcrypt==5.0.0",
+    "ecdsa==0.19.2",
     "argon2-cffi==25.1.0",
 
     # Logging

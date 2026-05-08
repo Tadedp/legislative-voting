@@ -5,6 +5,7 @@ from structlog import get_logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.router import router
 from src.core.config import settings
 from src.core.database import engine_health_check, db_engine
 
@@ -45,5 +46,7 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
+    
+    app.include_router(router)
 
     return app

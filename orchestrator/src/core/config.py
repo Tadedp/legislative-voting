@@ -71,7 +71,9 @@ class SecuritySettings(BaseSettings):
         env_prefix="", 
         extra="ignore", 
     )
-    
+
+    SESSION_COOKIE_NAME: str = "session_id"
+    SESSION_EXPIRY_SECONDS: int = 8     
     ARGON2_TIME_COST: int = 2
     ARGON2_MEMORY_COST: int = 65536
     ARGON2_PARALLELISM: int = 2
