@@ -35,8 +35,8 @@ class LegislativeSessionResponse(BaseModel):
     title: str
     status: LegSessionStatus
     ephemeral_public_key: str | None
-    opened_at: datetime | None
-    closed_at: datetime | None
+    opened_at: datetime | None = None
+    closed_at: datetime | None = None
     created_at: datetime
     deleted_at: datetime | None = None
 

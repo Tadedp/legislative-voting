@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from src.models.legislative_session import LegislativeSession
     from src.models.nominal_vote import NominalVote
     from src.models.non_nominal_vote import NonNominalVote
+    from src.models.voting_type import VotingType
     
 @unique
 class MotionStatus(StrEnum):
@@ -38,9 +39,17 @@ class Motion(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         ForeignKey("legislative_sessions.id"),
         nullable=False,
     )
+    voting_type_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("voting_types.id"),
+        nullable=False,
+    )
     title: Mapped[str] = mapped_column(
         Text,
         nullable=False,
+    )
+    summary: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
     )
     is_nominal: Mapped[bool] = mapped_column(
         Boolean,
@@ -68,6 +77,11 @@ class Motion(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
 
     legislative_session: Mapped[LegislativeSession] = relationship(
         "LegislativeSession",
+        back_populates="motions",
+        lazy="raise_on_sql",
+    )
+    voting_type: Mapped[VotingType] = relationship(
+        "VotingType",
         back_populates="motions",
         lazy="raise_on_sql",
     )

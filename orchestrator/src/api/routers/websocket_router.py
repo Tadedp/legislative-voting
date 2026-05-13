@@ -23,7 +23,7 @@ async def ws_state(
         await websocket.close(code=1008, reason="Invalid or inactive device token.")
         return
 
-    await manager.connect(websocket)
+    await manager.connect(websocket, device_token)
 
     try:
         while True:

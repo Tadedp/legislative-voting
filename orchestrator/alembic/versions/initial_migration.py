@@ -1,10 +1,3 @@
-"""initial_migration
-
-Revision ID: 1a30e7935895
-Revises: 
-Create Date: 2026-05-07 22:46:06.812053
-
-"""
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,7 +5,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '1a30e7935895'
+revision: str = 'cf8f29828eaa'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -55,6 +48,17 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_system_users'))
     )
     op.create_index('uq_system_users_username_lower', 'system_users', [sa.literal_column('lower(username)')], unique=True)
+    op.create_table('voting_types',
+    sa.Column('name', sa.Text(), nullable=False),
+    sa.Column('allows_abstentions', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('approval_threshold', sa.Numeric(precision=5, scale=2), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('id', sa.UUID(), server_default=sa.text('uuidv7()'), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_voting_types')),
+    sa.UniqueConstraint('name', name=op.f('uq_voting_types_name'))
+    )
     op.create_table('devices',
     sa.Column('legislator_id', sa.UUID(), nullable=False),
     sa.Column('mac_address', sa.Text(), nullable=False),
@@ -70,7 +74,9 @@ def upgrade() -> None:
     )
     op.create_table('motions',
     sa.Column('legislative_session_id', sa.UUID(), nullable=False),
+    sa.Column('voting_type_id', sa.UUID(), nullable=False),
     sa.Column('title', sa.Text(), nullable=False),
+    sa.Column('summary', sa.Text(), nullable=True),
     sa.Column('is_nominal', sa.Boolean(), server_default=sa.text('true'), nullable=False),
     sa.Column('status', sa.Enum('DRAFT', 'VOTING_OPEN', 'VOTING_CLOSED', 'RESOLVED', 'ABORTED', name='motion_status'), server_default=sa.text("'DRAFT'"), nullable=False),
     sa.Column('opened_at', sa.DateTime(timezone=True), nullable=True),
@@ -79,6 +85,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('uuidv7()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['legislative_session_id'], ['legislative_sessions.id'], name=op.f('fk_motions_legislative_session_id_legislative_sessions')),
+    sa.ForeignKeyConstraint(['voting_type_id'], ['voting_types.id'], name=op.f('fk_motions_voting_type_id_voting_types')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_motions'))
     )
     op.create_index('idx_motions_session_id', 'motions', ['legislative_session_id'], unique=False)
@@ -129,6 +136,7 @@ def downgrade() -> None:
     op.drop_index('idx_motions_session_id', table_name='motions')
     op.drop_table('motions')
     op.drop_table('devices')
+    op.drop_table('voting_types')
     op.drop_index('uq_system_users_username_lower', table_name='system_users')
     op.drop_table('system_users')
     op.drop_table('legislators')

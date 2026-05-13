@@ -7,6 +7,7 @@ from src.models.nominal_vote import NominalVote
 from src.models.non_nominal_vote import NonNominalVote
 from src.models.system_user import SystemUser
 from src.models.system_user_session import SystemUserSession
+from src.models.voting_type import VotingType
 
 __all__ = [
     "Base",
@@ -18,4 +19,5 @@ __all__ = [
     "NonNominalVote",
     "SystemUser",
     "SystemUserSession",
+    "VotingType",
 ]

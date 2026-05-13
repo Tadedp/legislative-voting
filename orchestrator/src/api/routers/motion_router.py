@@ -56,6 +56,8 @@ async def create_motion(
             db_session,
             session_id=legislative_session_id,
             title=body.title,
+            summary=body.summary,
+            voting_type_id=body.voting_type_id,
             is_nominal=body.is_nominal,
         )
     except ValueError as exc:

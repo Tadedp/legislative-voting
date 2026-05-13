@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.motion import Motion, MotionStatus
-from src.repositories import legislative_session_repository, motion_repository
+from src.repositories import (
+    legislative_session_repository,
+    motion_repository,
+    voting_type_repository,
+)
 
 async def list_motions_by_session(
     db: AsyncSession,
@@ -31,6 +35,8 @@ async def create_motion(
     *,
     session_id: uuid.UUID,
     title: str,
+    summary: str | None = None,
+    voting_type_id: uuid.UUID,
     is_nominal: bool = True,
 ) -> Motion:
     session = await legislative_session_repository.get_by_id(db, session_id)
@@ -38,9 +44,15 @@ async def create_motion(
     if session is None or session.deleted_at is not None:
         raise ValueError("Legislative session not found.")
 
+    voting_type = await voting_type_repository.get_by_id(db, voting_type_id)
+    if voting_type is None or voting_type.deleted_at is not None:
+        raise ValueError("Voting type not found.")
+
     motion = Motion(
         legislative_session_id=session_id,
         title=title,
+        summary=summary,
+        voting_type_id=voting_type_id,
         is_nominal=is_nominal,
     )
     return await motion_repository.create(db, motion=motion)
@@ -61,6 +73,13 @@ async def update_motion(
             "Cannot update motion: only motions with status 'DRAFT' "
             "can be modified.",
         )
+
+    if "voting_type_id" in update_data:
+        voting_type = await voting_type_repository.get_by_id(
+            db, update_data["voting_type_id"],
+        )
+        if voting_type is None or voting_type.deleted_at is not None:
+            raise ValueError("Voting type not found.")
 
     for field, value in update_data.items():
         setattr(motion, field, value)
