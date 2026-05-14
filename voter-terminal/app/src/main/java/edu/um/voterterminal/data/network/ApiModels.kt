@@ -143,8 +143,11 @@ data class OrchestratorEvent(
     val data: JsonObject
 ) {
     companion object {
-        /** Full session state pushed on connect and on any state mutation. */
-        const val STATE_UPDATE = "STATE_UPDATE"
+        /** A motion is opened for voting. */
+        const val MOTION_OPENED = "MOTION_OPENED"
+
+        /** A motion is closed. */
+        const val MOTION_CLOSED = "MOTION_CLOSED"
 
         /** A motion was aborted by the Presidency — clears vote lock-out. */
         const val MOTION_ABORTED = "MOTION_ABORTED"
