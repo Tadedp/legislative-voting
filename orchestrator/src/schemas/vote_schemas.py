@@ -10,6 +10,10 @@ class NominalVote(BaseModel):
     motion_id: uuid.UUID
     legislator_id: uuid.UUID
     vote_value: NominalVoteValue
+    timestamp: Annotated[
+        int,
+        Field(gt=0, description="Unix epoch milliseconds"),
+    ]
     cryptographic_signature: Annotated[
         str, 
         Field(min_length=1),
@@ -21,6 +25,10 @@ class NonNominalVote(BaseModel):
     encrypted_payload: Annotated[
         str, 
         Field(min_length=1),
+    ]
+    timestamp: Annotated[
+        int,
+        Field(gt=0, description="Unix epoch milliseconds"),
     ]
     cryptographic_signature: Annotated[
         str, 

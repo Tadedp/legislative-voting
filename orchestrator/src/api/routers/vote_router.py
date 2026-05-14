@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
@@ -6,7 +7,8 @@ from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies.auth_deps import check_access
 from src.api.dependencies.common_deps import DbSessionDep
-from src.api.exceptions import ConflictException, UnauthorizedException
+from src.api.exceptions import BadRequestException, ConflictException, UnauthorizedException
+from src.core.config import settings
 from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.services import vote_service
@@ -36,12 +38,17 @@ async def cast_nominal_vote(
     body: NominalVote,
     background_tasks: BackgroundTasks,
 ) -> NominalVoteResponse:
+    current_utc_millis = int(datetime.now(timezone.utc).timestamp() * 1000)
+    if abs(current_utc_millis - body.timestamp) >= settings.security.ANTI_REPLAY_WINDOW_MS:
+        raise BadRequestException("Payload expired.")
+
     try:
         vote = await vote_service.cast_nominal_vote(
             db_session,
             motion_id=body.motion_id,
             legislator_id=body.legislator_id,
             vote_value=body.vote_value,
+            timestamp=body.timestamp,
             cryptographic_signature=body.cryptographic_signature,
         )
     except ValueError as exc:
@@ -77,12 +84,17 @@ async def cast_non_nominal_vote(
     body: NonNominalVote,
     background_tasks: BackgroundTasks,
 ) -> NonNominalVoteResponse:
+    current_utc_millis = int(datetime.now(timezone.utc).timestamp() * 1000)
+    if abs(current_utc_millis - body.timestamp) >= settings.security.ANTI_REPLAY_WINDOW_MS:
+        raise BadRequestException("Payload expired.")
+
     try:
         vote = await vote_service.cast_non_nominal_vote(
             db_session,
             motion_id=body.motion_id,
             legislator_id=body.legislator_id,
             encrypted_payload=body.encrypted_payload,
+            timestamp=body.timestamp,
             cryptographic_signature=body.cryptographic_signature,
         )
     except ValueError as exc:

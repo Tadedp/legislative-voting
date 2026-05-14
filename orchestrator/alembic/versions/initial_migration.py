@@ -5,7 +5,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'cf8f29828eaa'
+revision: str = '84b9bda3e025'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -61,7 +61,7 @@ def upgrade() -> None:
     )
     op.create_table('devices',
     sa.Column('legislator_id', sa.UUID(), nullable=False),
-    sa.Column('mac_address', sa.Text(), nullable=False),
+    sa.Column('hardware_id', sa.UUID(), nullable=False),
     sa.Column('device_token', sa.Text(), nullable=False),
     sa.Column('assigned_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('id', sa.UUID(), server_default=sa.text('uuidv7()'), nullable=False),
@@ -69,8 +69,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['legislator_id'], ['legislators.id'], name=op.f('fk_devices_legislator_id_legislators')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_devices')),
     sa.UniqueConstraint('device_token', name=op.f('uq_devices_device_token')),
-    sa.UniqueConstraint('legislator_id', name=op.f('uq_devices_legislator_id')),
-    sa.UniqueConstraint('mac_address', name=op.f('uq_devices_mac_address'))
+    sa.UniqueConstraint('hardware_id', name=op.f('uq_devices_hardware_id')),
+    sa.UniqueConstraint('legislator_id', name=op.f('uq_devices_legislator_id'))
     )
     op.create_table('motions',
     sa.Column('legislative_session_id', sa.UUID(), nullable=False),

@@ -14,6 +14,7 @@ async def cast_nominal_vote(
     motion_id: uuid.UUID,
     legislator_id: uuid.UUID,
     vote_value: NominalVoteValue,
+    timestamp: int,
     cryptographic_signature: str,
 ) -> NominalVote:
     legislator = await legislator_repository.get_by_id(db_session, legislator_id)
@@ -26,8 +27,9 @@ async def cast_nominal_vote(
 
     canonical_payload = json.dumps(
         {
-            "motion_id": str(motion_id),
             "legislator_id": str(legislator_id),
+            "motion_id": str(motion_id),
+            "timestamp": timestamp,
             "vote_value": vote_value.value,
         },
         separators=(",", ":"),
@@ -56,6 +58,7 @@ async def cast_non_nominal_vote(
     motion_id: uuid.UUID,
     legislator_id: uuid.UUID,
     encrypted_payload: str,
+    timestamp: int,
     cryptographic_signature: str,
 ) -> NonNominalVote:
     legislator = await legislator_repository.get_by_id(db_session, legislator_id)
@@ -71,6 +74,7 @@ async def cast_non_nominal_vote(
             "encrypted_payload": encrypted_payload,
             "legislator_id": str(legislator_id),
             "motion_id": str(motion_id),
+            "timestamp": timestamp,
         },
         separators=(",", ":"),
         sort_keys=True,

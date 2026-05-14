@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Text, func
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
@@ -18,8 +19,8 @@ class Device(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
         unique=True,
         nullable=False,
     )
-    mac_address: Mapped[str] = mapped_column(
-        Text,
+    hardware_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         unique=True,
         nullable=False,
     )

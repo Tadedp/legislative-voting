@@ -65,8 +65,9 @@ async def enroll_legislator(
             db_session,
             national_id=body.national_id,
             full_name=body.full_name,
-            device_public_key=body.device_public_key,
-            mac_address=body.mac_address,
+            hardware_id=body.hardware_id,
+            biometric_payload=body.biometric_payload,
+            certificate_chain=body.certificate_chain,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))

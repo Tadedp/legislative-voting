@@ -13,13 +13,14 @@ class LegislatorEnroll(BaseModel):
         str, 
         Field(min_length=1, max_length=500),
     ]
-    device_public_key: Annotated[
-        str, 
-        Field(min_length=1, max_length=255),
+    hardware_id: uuid.UUID
+    biometric_payload: Annotated[
+        str,
+        Field(min_length=1),
     ]
-    mac_address: Annotated[
-        str, 
-        Field(min_length=1, max_length=50),
+    certificate_chain: Annotated[
+        list[str],
+        Field(min_length=1),
     ]
 
 class LegislatorUpdate(BaseModel):
@@ -37,7 +38,7 @@ class DeviceResponse(BaseModel):
 
     id: uuid.UUID
     legislator_id: uuid.UUID
-    mac_address: str
+    hardware_id: uuid.UUID
     device_token: str
     assigned_at: datetime
     deleted_at: datetime | None = None
