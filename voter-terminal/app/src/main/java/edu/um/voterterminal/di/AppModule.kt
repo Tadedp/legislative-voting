@@ -8,6 +8,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import edu.um.voterterminal.data.local.SecurePrefsManager
 import edu.um.voterterminal.data.network.OrchestratorClient
+import edu.um.voterterminal.security.BiometricSigner
+import edu.um.voterterminal.security.EncryptionUtils
+import edu.um.voterterminal.security.KeyStoreManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -54,5 +57,25 @@ object AppModule {
         prefsManager: SecurePrefsManager
     ): OrchestratorClient {
         return OrchestratorClient(httpClient, prefsManager)
+    }
+
+    @Provides
+    @Singleton
+    fun provideKeyStoreManager(): KeyStoreManager {
+        return KeyStoreManager()
+    }
+
+    @Provides
+    @Singleton
+    fun provideEncryptionUtils(): EncryptionUtils {
+        return EncryptionUtils()
+    }
+
+    @Provides
+    @Singleton
+    fun provideBiometricSigner(
+        keyStoreManager: KeyStoreManager
+    ): BiometricSigner {
+        return BiometricSigner(keyStoreManager)
     }
 }

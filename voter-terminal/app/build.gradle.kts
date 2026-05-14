@@ -56,8 +56,10 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
-    // Security — EncryptedSharedPreferences
+    // Security — EncryptedSharedPreferences, Biometric, Appcompat
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.appcompat)
 
     // Ktor Client
     implementation(libs.ktor.client.core)
