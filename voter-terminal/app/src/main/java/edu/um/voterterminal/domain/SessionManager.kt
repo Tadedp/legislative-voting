@@ -29,12 +29,12 @@ class SessionManager @Inject constructor(
 
     /**
      * Marks the current motion as successfully voted on by the user.
-     * Transitions the state from VotingOpen to VoteLocked.
+     * Transitions the state from VotingOpen to VoteLocked, retaining context.
      */
-    fun markVoteSubmitted(motionId: String) {
+    fun markVoteSubmitted() {
         val currentState = _state.value
-        if (currentState is VotingState.VotingOpen && currentState.motionId == motionId) {
-            updateState(VotingState.VoteLocked(motionId))
+        if (currentState is VotingState.VotingOpen) {
+            updateState(VotingState.VoteLocked(currentState))
         }
     }
 

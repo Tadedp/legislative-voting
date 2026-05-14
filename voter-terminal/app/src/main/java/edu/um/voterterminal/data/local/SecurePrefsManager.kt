@@ -29,6 +29,7 @@ class SecurePrefsManager @Inject constructor(
         const val PREFS_FILENAME = "voter_terminal_secure_prefs"
         const val KEY_HARDWARE_ID = "hardware_id"
         const val KEY_DEVICE_TOKEN = "device_token"
+        const val KEY_LEGISLATOR_ID = "legislator_id"
     }
 
     private val masterKeyAlias: String = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
@@ -67,6 +68,17 @@ class SecurePrefsManager @Inject constructor(
         set(value) {
             prefs.edit()
                 .putString(KEY_DEVICE_TOKEN, value)
+                .apply()
+        }
+
+    /**
+     * The Orchestrator-issued legislator ID, acquired during enrollment.
+     */
+    var legislatorId: String?
+        get() = prefs.getString(KEY_LEGISLATOR_ID, null)
+        set(value) {
+            prefs.edit()
+                .putString(KEY_LEGISLATOR_ID, value)
                 .apply()
         }
 

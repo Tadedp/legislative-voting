@@ -73,13 +73,17 @@ class SessionKeepAliveService : Service() {
                         val title = event.data["title"]?.jsonPrimitive?.content ?: "Unknown Motion"
                         val summary = event.data["summary"]?.jsonPrimitive?.content ?: ""
                         val allowsAbstentions = event.data["allows_abstentions"]?.jsonPrimitive?.boolean ?: true
+                        val isNominal = event.data["is_nominal"]?.jsonPrimitive?.boolean ?: true
+                        val ephemeralPublicKey = event.data["ephemeral_public_key"]?.jsonPrimitive?.content
 
                         sessionManager.updateState(
                             VotingState.VotingOpen(
                                 motionId = motionId,
                                 title = title,
                                 summary = summary,
-                                allowsAbstentions = allowsAbstentions
+                                allowsAbstentions = allowsAbstentions,
+                                isNominal = isNominal,
+                                ephemeralPublicKey = ephemeralPublicKey
                             )
                         )
                     }

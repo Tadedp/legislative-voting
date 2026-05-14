@@ -17,15 +17,17 @@ sealed interface VotingState {
         val motionId: String,
         val title: String,
         val summary: String,
-        val allowsAbstentions: Boolean
+        val allowsAbstentions: Boolean,
+        val isNominal: Boolean,
+        val ephemeralPublicKey: String? = null
     ) : VotingState
 
     /**
      * The user has successfully submitted a vote for the current motion.
-     * The UI should visually lock and disable voting controls.
+     * The UI should visually lock and disable voting controls, while retaining context.
      */
     data class VoteLocked(
-        val motionId: String
+        val originalState: VotingOpen
     ) : VotingState
 
     /**
