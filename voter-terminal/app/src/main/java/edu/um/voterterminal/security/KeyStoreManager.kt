@@ -46,7 +46,7 @@ class KeyStoreManager @Inject constructor() {
             KEY_ALIAS,
             KeyProperties.PURPOSE_SIGN
         )
-            .setAlgorithmParameterSpec(ECGenParameterSpec("secp256k1"))
+            .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setUserAuthenticationRequired(true)
             // Invalidate key if new fingerprints/faces are added to the device

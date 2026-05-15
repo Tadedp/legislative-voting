@@ -74,8 +74,8 @@ fun VoterTerminalRouter(
         when (state) {
             is VotingState.Unprovisioned -> {
                 ProvisioningScreen(
-                    onProvisionClicked = { nationalId ->
-                        viewModel.provisionDevice(nationalId)
+                    onProvisionClicked = { nationalId, adminUsername, adminPassword ->
+                        viewModel.provisionDevice(nationalId, adminUsername, adminPassword)
                     }
                 )
             }

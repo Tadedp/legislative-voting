@@ -7,7 +7,8 @@ from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHas
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from ecdsa import SECP256k1, BadSignatureError, VerifyingKey # type: ignore
+from ecdsa import BadSignatureError, NIST256p, VerifyingKey # type: ignore
+from ecdsa.util import sigdecode_der # type: ignore
 from starlette.concurrency import run_in_threadpool
 from structlog import get_logger
 
@@ -36,7 +37,7 @@ def generate_session_token() -> str:
     return secrets.token_hex(32)
 
 def extract_public_key_from_cert(cert_b64: str) -> str:
-    """Extract the uncompressed secp256k1 public key hex from a Base64-encoded X.509 certificate.
+    """Extract the uncompressed secp256r1 public key hex from a Base64-encoded X.509 certificate.
 
     Attempts DER decoding first (most common for Android attestation chains),
     then falls back to PEM.  Raises ValueError on any parsing or curve mismatch.
@@ -65,9 +66,9 @@ def extract_public_key_from_cert(cert_b64: str) -> str:
             "Certificate does not contain an Elliptic Curve public key.",
         )
 
-    if not isinstance(public_key.curve, ec.SECP256K1):
+    if not isinstance(public_key.curve, ec.SECP256R1):
         raise ValueError(
-            f"Expected SECP256K1 curve, got {public_key.curve.name}.",
+            f"Expected SECP256R1 curve, got {public_key.curve.name}.",
         )
 
     uncompressed_bytes = public_key.public_bytes(
@@ -76,7 +77,7 @@ def extract_public_key_from_cert(cert_b64: str) -> str:
     )
     return uncompressed_bytes.hex()
 
-def verify_secp256k1_signature(
+def verify_secp256r1_signature(
     public_key_hex: str,
     payload: bytes,
     signature_hex: str,
@@ -87,7 +88,7 @@ def verify_secp256k1_signature(
 
         vk = VerifyingKey.from_string( # type: ignore
             public_key_bytes,
-            curve=SECP256k1,
+            curve=NIST256p,
             hashfunc=hashlib.sha256,
         )
 
@@ -95,6 +96,7 @@ def verify_secp256k1_signature(
             signature_bytes,
             payload,
             hashfunc=hashlib.sha256,
+            sigdecode=sigdecode_der,
         )
         return True
 

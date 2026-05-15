@@ -45,6 +45,7 @@ class MotionResponse(BaseModel):
 
     id: uuid.UUID
     title: str
+    summary: str | None = None
     is_nominal: bool
     status: MotionStatus
 

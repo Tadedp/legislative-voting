@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -17,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,6 +46,7 @@ fun VotingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .systemBarsPadding()
                 .padding(24.dp)
                 .alpha(alphaValue)
         ) {
@@ -60,12 +65,6 @@ fun VotingScreen(
                         .verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        text = "Motion #${state.motionId}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
                         text = state.title,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
@@ -77,48 +76,80 @@ fun VotingScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
-                    
-                    if (!state.isNominal) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "SECRET BALLOT: This vote uses Double-Envelope Encryption.",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Bold
-                        )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Voting Metadata Block
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Información de la Votación",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                fontWeight = FontWeight.Bold
+                            )
+                            
+                            val tipoVotoText = if (state.isNominal) "Votación Nominal" else "Votación Secreta"
+                            Text(
+                                text = "• Modalidad: $tipoVotoText",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+
+                            val abstencionesText = if (state.allowsAbstentions) "Permitidas" else "No permitidas"
+                            Text(
+                                text = "• Abstenciones: $abstencionesText",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Voting Controls
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Button(
-                    onClick = { onVoteClicked("AFFIRMATIVE") },
-                    enabled = !isLocked,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(80.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), // Green
-                    shape = RoundedCornerShape(12.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text("AFFIRMATIVE", style = MaterialTheme.typography.titleLarge)
-                }
+                    Button(
+                        onClick = { onVoteClicked("AFFIRMATIVE") },
+                        enabled = !isLocked,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(80.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), // Green
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("AFIRMATIVO", style = MaterialTheme.typography.titleLarge)
+                    }
 
-                Button(
-                    onClick = { onVoteClicked("NEGATIVE") },
-                    enabled = !isLocked,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(80.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)), // Red
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("NEGATIVE", style = MaterialTheme.typography.titleLarge)
+                    Button(
+                        onClick = { onVoteClicked("NEGATIVE") },
+                        enabled = !isLocked,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(80.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)), // Red
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("NEGATIVO", style = MaterialTheme.typography.titleLarge)
+                    }
                 }
 
                 if (state.allowsAbstentions) {
@@ -126,12 +157,12 @@ fun VotingScreen(
                         onClick = { onVoteClicked("ABSTENTION") },
                         enabled = !isLocked,
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
                             .height(80.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF9A825)), // Yellow
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("ABSTAIN", style = MaterialTheme.typography.titleLarge)
+                        Text("ABSTENERSE", style = MaterialTheme.typography.titleLarge)
                     }
                 }
             }
@@ -142,7 +173,7 @@ fun VotingScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.3f)),
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f)),
                 contentAlignment = Alignment.Center
             ) {
                 Surface(
@@ -151,7 +182,7 @@ fun VotingScreen(
                     tonalElevation = 8.dp
                 ) {
                     Text(
-                        text = "Vote Successfully Registered",
+                        text = "Voto Registrado Exitosamente",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,

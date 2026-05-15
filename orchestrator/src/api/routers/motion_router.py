@@ -8,6 +8,7 @@ from src.api.dependencies.common_deps import DbSessionDep
 from src.api.exceptions import BadRequestException, ConflictException, NotFoundException
 from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
+from src.models.motion import MotionStatus
 from src.schemas.motion_schemas import (
     MotionCreate,
     MotionResponse,
@@ -147,16 +148,44 @@ async def update_motion_status(
         raise ConflictException(str(exc))
     
     response = MotionResponse.model_validate(motion)
-    
-    background_tasks.add_task(
-        manager.broadcast,
-        "MOTION_STATUS_CHANGED",
-        {
-            "motion_id": str(motion_id),
-            "new_status": body.status.value,
-            "legislative_session_id": str(response.legislative_session_id),
-        },
-    )
+
+    if body.status == MotionStatus.VOTING_OPEN:
+        # Fetch the voting type to get allows_abstentions
+        voting_type = await motion_service.get_voting_type_for_motion(db_session, motion_id)
+        # Fetch the legislative session to get the ephemeral public key
+        session = await motion_service.get_session_for_motion(db_session, motion_id)
+
+        background_tasks.add_task(
+            manager.broadcast,
+            "MOTION_OPENED",
+            {
+                "motion_id": str(motion_id),
+                "title": motion.title,
+                "summary": motion.summary or "",
+                "is_nominal": motion.is_nominal,
+                "allows_abstentions": voting_type.allows_abstentions if voting_type else True,
+                "ephemeral_public_key": session.ephemeral_public_key if session else None,
+            },
+        )
+    elif body.status == MotionStatus.VOTING_CLOSED:
+        background_tasks.add_task(
+            manager.broadcast,
+            "MOTION_CLOSED",
+            {
+                "motion_id": str(motion_id),
+                "legislative_session_id": str(response.legislative_session_id),
+            },
+        )
+    else:
+        background_tasks.add_task(
+            manager.broadcast,
+            "MOTION_STATUS_CHANGED",
+            {
+                "motion_id": str(motion_id),
+                "new_status": body.status.value,
+                "legislative_session_id": str(response.legislative_session_id),
+            },
+        )
     
     return response
 

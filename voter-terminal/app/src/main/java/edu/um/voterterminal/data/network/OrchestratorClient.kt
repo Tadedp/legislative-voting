@@ -5,12 +5,14 @@ import edu.um.voterterminal.data.local.SecurePrefsManager
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.channels.awaitClose
@@ -51,6 +53,8 @@ class OrchestratorClient @Inject constructor(
     private val wsBaseUrl: String = BuildConfig.ORCHESTRATOR_WS_URL
 
     private val json = Json { ignoreUnknownKeys = true }
+    
+    private var ephemeralSessionCookie: String? = null
 
     // -----------------------------------------------------------------------
     // REST: Session
@@ -62,10 +66,14 @@ class OrchestratorClient @Inject constructor(
      *
      * Requires: enrolled device with a valid `device_token`.
      */
-    suspend fun getCurrentSession(): SessionResponse {
-        return httpClient.get("$httpBaseUrl/sessions/current") {
+    suspend fun getCurrentSession(): CurrentSessionResponse {
+        val response = httpClient.get("$httpBaseUrl/legislative-sessions/current") {
             header(HEADER_DEVICE_TOKEN, requireDeviceToken())
-        }.body()
+        }
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
+        }
+        return response.body()
     }
 
     // -----------------------------------------------------------------------
@@ -79,10 +87,59 @@ class OrchestratorClient @Inject constructor(
      * No auth header — the device is not yet provisioned at this point.
      */
     suspend fun enrollLegislator(request: EnrollRequest): EnrollResponse {
-        return httpClient.post("$httpBaseUrl/legislators/enroll") {
+        val response = httpClient.post("$httpBaseUrl/legislators/enroll") {
             contentType(ContentType.Application.Json)
             setBody(request)
-        }.body()
+            ephemeralSessionCookie?.let { cookieVal ->
+                header("Cookie", cookieVal)
+            }
+        }
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
+        }
+        return response.body()
+    }
+
+    // -----------------------------------------------------------------------
+    // REST: Ephemeral Admin Authentication (for Provisioning)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Authenticates a system administrator via username/password.
+     * The Ktor [HttpCookies] plugin automatically stores the `HttpOnly`
+     * session cookie returned by the Orchestrator, so subsequent requests
+     * (e.g. [enrollLegislator]) are transparently authenticated.
+     *
+     * This session is **ephemeral** — [adminLogout] MUST be called after
+     * provisioning completes (or fails) to destroy the server-side session.
+     */
+    suspend fun adminLogin(request: LoginRequest) {
+        val response = httpClient.post("$httpBaseUrl/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+        val setCookieHeader = response.headers["Set-Cookie"]
+        if (setCookieHeader != null) {
+            ephemeralSessionCookie = setCookieHeader.substringBefore(";")
+        }
+    }
+
+    /**
+     * Destroys the admin session on the Orchestrator and clears the
+     * in-memory cookie storage to prevent accidental session reuse.
+     */
+    suspend fun adminLogout() {
+        try {
+            httpClient.post("$httpBaseUrl/auth/logout") {
+                ephemeralSessionCookie?.let { cookieVal ->
+                    header("Cookie", cookieVal)
+                }
+            }
+        } catch (_: Exception) {
+            // Best-effort: session may already be expired
+        } finally {
+            ephemeralSessionCookie = null
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -94,10 +151,14 @@ class OrchestratorClient @Inject constructor(
      * Auth is exclusively via the cryptographic signature in the request body.
      */
     suspend fun castNominalVote(request: NominalVoteRequest): VoteResponse {
-        return httpClient.post("$httpBaseUrl/votes/nominal") {
+        val response = httpClient.post("$httpBaseUrl/votes/nominal") {
             contentType(ContentType.Application.Json)
             setBody(request)
-        }.body()
+        }
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
+        }
+        return response.body()
     }
 
     /**
@@ -105,10 +166,14 @@ class OrchestratorClient @Inject constructor(
      * Auth is exclusively via the cryptographic signature in the request body.
      */
     suspend fun castNonNominalVote(request: NonNominalVoteRequest): VoteResponse {
-        return httpClient.post("$httpBaseUrl/votes/non-nominal") {
+        val response = httpClient.post("$httpBaseUrl/votes/non-nominal") {
             contentType(ContentType.Application.Json)
             setBody(request)
-        }.body()
+        }
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
+        }
+        return response.body()
     }
 
     // -----------------------------------------------------------------------
@@ -134,7 +199,7 @@ class OrchestratorClient @Inject constructor(
                 val token = requireDeviceToken()
 
                 httpClient.webSocket(
-                    urlString = "$wsBaseUrl/ws/state?token=$token"
+                    urlString = "$wsBaseUrl/ws/state?device_token=$token"
                 ) {
                     // Successful connection — reset backoff
                     retryCount = 0

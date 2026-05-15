@@ -9,6 +9,18 @@ import kotlinx.serialization.json.JsonObject
 // ---------------------------------------------------------------------------
 
 /**
+ * POST /auth/login
+ *
+ * Ephemeral admin authentication used during device provisioning.
+ * The session cookie is handled automatically by the Ktor HttpCookies plugin.
+ */
+@Serializable
+data class LoginRequest(
+    val username: String,
+    val password: String
+)
+
+/**
  * POST /legislators/enroll
  *
  * Enrolls a legislator by submitting identity verification data and
@@ -21,6 +33,9 @@ data class EnrollRequest(
 
     @SerialName("hardware_id")
     val hardwareId: String,
+
+    @SerialName("full_name")
+    val fullName: String,
 
     @SerialName("biometric_payload")
     val biometricPayload: String,
@@ -80,16 +95,35 @@ data class NonNominalVoteRequest(
 // ---------------------------------------------------------------------------
 
 /**
- * Response from GET /sessions/current.
- * Represents the authoritative session state broadcast by the Orchestrator.
+ * Response from GET /legislative-sessions/current.
+ * Wraps the authoritative session state and the currently open motion (if any).
  */
 @Serializable
-data class SessionResponse(
+data class CurrentSessionResponse(
+    val session: SessionInfo,
+    @SerialName("active_motion")
+    val activeMotion: ActiveMotionInfo? = null
+)
+
+@Serializable
+data class SessionInfo(
     val id: String,
     val title: String,
     val status: String,
+    @SerialName("ephemeral_public_key")
+    val ephemeralPublicKey: String? = null,
     @SerialName("created_at")
     val createdAt: String? = null
+)
+
+@Serializable
+data class ActiveMotionInfo(
+    val id: String,
+    val title: String,
+    val summary: String? = null,
+    @SerialName("is_nominal")
+    val isNominal: Boolean,
+    val status: String
 )
 
 /**
@@ -121,7 +155,8 @@ data class EnrollResponse(
  */
 @Serializable
 data class VoteResponse(
-    val id: String,
+    @SerialName("event_id")
+    val eventId: String,
     val status: String? = null
 )
 

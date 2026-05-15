@@ -153,3 +153,23 @@ async def abort_motion(
     motion.closed_at = None
     await db.flush()
     return motion
+
+async def get_voting_type_for_motion(
+    db: AsyncSession,
+    motion_id: uuid.UUID,
+):
+    motion = await motion_repository.get_by_id(db, motion_id)
+    if motion is None:
+        return None
+    voting_type = await voting_type_repository.get_by_id(db, motion.voting_type_id)
+    return voting_type
+
+async def get_session_for_motion(
+    db: AsyncSession,
+    motion_id: uuid.UUID,
+):
+    motion = await motion_repository.get_by_id(db, motion_id)
+    if motion is None:
+        return None
+    session = await legislative_session_repository.get_by_id(db, motion.legislative_session_id)
+    return session

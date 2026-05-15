@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import edu.um.voterterminal.data.local.SecurePrefsManager
 import edu.um.voterterminal.data.network.EnrollRequest
+import edu.um.voterterminal.data.network.LoginRequest
 import edu.um.voterterminal.data.network.NominalVoteRequest
 import edu.um.voterterminal.data.network.NonNominalVoteRequest
 import edu.um.voterterminal.data.network.OrchestratorClient
@@ -52,9 +53,17 @@ class VotingViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val sessionResponse = orchestratorClient.getCurrentSession()
+                val activeMotion = sessionResponse.activeMotion
                 
-                val initialState = if (sessionResponse.status == "VOTING_OPEN") {
-                    VotingState.Idle
+                val initialState = if (activeMotion != null && activeMotion.status == "VOTING_OPEN") {
+                    VotingState.VotingOpen(
+                        motionId = activeMotion.id,
+                        title = activeMotion.title,
+                        summary = activeMotion.summary ?: "",
+                        allowsAbstentions = true, // Default; full data comes via WS
+                        isNominal = activeMotion.isNominal,
+                        ephemeralPublicKey = sessionResponse.session.ephemeralPublicKey
+                    )
                 } else {
                     VotingState.Idle
                 }
@@ -75,25 +84,34 @@ class VotingViewModel @Inject constructor(
     /**
      * Provisions the device by generating a Keystore key pair and enrolling via the REST API.
      */
-    fun provisionDevice(nationalId: String) {
+    fun provisionDevice(nationalId: String, adminUsername: String, adminPassword: String) {
         viewModelScope.launch {
             try {
+                // 1. Authenticate Admin (ephemeral session)
+                orchestratorClient.adminLogin(LoginRequest(adminUsername, adminPassword))
+
+                // 2. Generate hardware-bound key pair
                 val certChain = keyStoreManager.generateKeyPairWithAttestation(nationalId)
                 val enrollRequest = EnrollRequest(
                     nationalId = nationalId,
+                    fullName = "Mock Legislator Name",
                     hardwareId = securePrefsManager.hardwareId,
                     biometricPayload = "MOCK_FACIAL_CAPTURE_BASE64",
                     certificateChain = certChain
                 )
-                
+
+                // 3. Enroll via REST (admin cookie is sent automatically)
                 val response = orchestratorClient.enrollLegislator(enrollRequest)
                 securePrefsManager.deviceToken = response.device.deviceToken
                 securePrefsManager.legislatorId = response.id
-                
+
                 sessionManager.updateState(VotingState.Idle)
                 startKeepAliveService()
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                // 4. ALWAYS destroy admin session
+                orchestratorClient.adminLogout()
             }
         }
     }

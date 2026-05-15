@@ -3,7 +3,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.security import verify_secp256k1_signature
+from src.core.security import verify_secp256r1_signature
 from src.models.nominal_vote import NominalVote, NominalVoteValue
 from src.models.non_nominal_vote import NonNominalVote
 from src.repositories import legislator_repository, vote_repository
@@ -36,7 +36,7 @@ async def cast_nominal_vote(
         sort_keys=True,
     ).encode("utf-8")
 
-    if not verify_secp256k1_signature(
+    if not verify_secp256r1_signature(
         public_key_hex=legislator.current_public_key,
         payload=canonical_payload,
         signature_hex=cryptographic_signature,
@@ -80,7 +80,7 @@ async def cast_non_nominal_vote(
         sort_keys=True,
     ).encode("utf-8")
 
-    if not verify_secp256k1_signature(
+    if not verify_secp256r1_signature(
         public_key_hex=legislator.current_public_key,
         payload=canonical_payload,
         signature_hex=cryptographic_signature,
