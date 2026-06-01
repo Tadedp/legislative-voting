@@ -1,13 +1,27 @@
 from datetime import datetime
+from enum import unique, StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Numeric, Text, func, true
+from sqlalchemy import Boolean, DateTime, Enum, Numeric, Text, func, text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from src.models.motion import Motion
+
+@unique
+class CalculationBase(StrEnum):
+    """Defines the mathematical denominator used to evaluate motion passage.
+
+    VOTES_CAST: denominator = affirmative + negative (abstentions excluded).
+    MEMBERS_PRESENT: denominator = quorum snapshot at vote start.
+    TOTAL_MEMBERS: denominator = total enrolled active legislators.
+    """
+
+    VOTES_CAST = "VOTES_CAST"
+    MEMBERS_PRESENT = "MEMBERS_PRESENT"
+    TOTAL_MEMBERS = "TOTAL_MEMBERS"
 
 class VotingType(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
     __tablename__ = "voting_types"
@@ -24,6 +38,11 @@ class VotingType(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
     )
     approval_threshold: Mapped[float] = mapped_column(
         Numeric(precision=5, scale=2),
+        nullable=False,
+    )
+    calc_base: Mapped[CalculationBase] = mapped_column(
+        Enum(CalculationBase, name="calculation_base"),
+        server_default=text("'VOTES_CAST'"),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(

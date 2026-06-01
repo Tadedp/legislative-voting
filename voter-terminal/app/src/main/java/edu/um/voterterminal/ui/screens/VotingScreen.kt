@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -19,7 +18,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,8 +35,13 @@ import edu.um.voterterminal.presentation.VotingState
 fun VotingScreen(
     state: VotingState.VotingOpen,
     isLocked: Boolean = false,
+    isPresident: Boolean = false,
+    presidentVotesOrdinarily: Boolean = true,
     onVoteClicked: (voteValue: String) -> Unit
 ) {
+    // Scenario C: President whose ordinary vote is NOT required
+    val presidentWaiting = isPresident && !presidentVotesOrdinarily
+
     val alphaValue = if (isLocked) 0.4f else 1f
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -118,51 +120,73 @@ fun VotingScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Voting Controls
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
+            if (presidentWaiting) {
+                // Scenario C: President's ordinary vote is not required — show status text
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Button(
-                        onClick = { onVoteClicked("AFFIRMATIVE") },
-                        enabled = !isLocked,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(80.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), // Green
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("AFIRMATIVO", style = MaterialTheme.typography.titleLarge)
-                    }
-
-                    Button(
-                        onClick = { onVoteClicked("NEGATIVE") },
-                        enabled = !isLocked,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(80.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)), // Red
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("NEGATIVO", style = MaterialTheme.typography.titleLarge)
-                    }
-                }
-
-                if (state.allowsAbstentions) {
-                    Button(
-                        onClick = { onVoteClicked("ABSTENTION") },
-                        enabled = !isLocked,
+                    Text(
+                        text = "Presiding Officer: Ordinary vote not required. Awaiting chamber result.",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(80.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF9A825)), // Yellow
-                        shape = RoundedCornerShape(12.dp)
+                            .padding(horizontal = 24.dp, vertical = 20.dp)
+                    )
+                }
+            } else {
+                // Scenarios A & B: Standard voting controls
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("ABSTENERSE", style = MaterialTheme.typography.titleLarge)
+                        Button(
+                            onClick = { onVoteClicked("AFFIRMATIVE") },
+                            enabled = !isLocked,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(80.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), // Green
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("AFIRMATIVO", style = MaterialTheme.typography.titleLarge)
+                        }
+
+                        Button(
+                            onClick = { onVoteClicked("NEGATIVE") },
+                            enabled = !isLocked,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(80.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)), // Red
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("NEGATIVO", style = MaterialTheme.typography.titleLarge)
+                        }
+                    }
+
+                    if (state.allowsAbstentions) {
+                        Button(
+                            onClick = { onVoteClicked("ABSTENTION") },
+                            enabled = !isLocked,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF9A825)), // Yellow
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("ABSTENERSE", style = MaterialTheme.typography.titleLarge)
+                        }
                     }
                 }
             }

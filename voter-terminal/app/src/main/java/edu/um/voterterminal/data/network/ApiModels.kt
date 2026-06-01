@@ -112,6 +112,8 @@ data class SessionInfo(
     val status: String,
     @SerialName("ephemeral_public_key")
     val ephemeralPublicKey: String? = null,
+    @SerialName("presiding_officer_id")
+    val presidingOfficerId: String? = null,
     @SerialName("created_at")
     val createdAt: String? = null
 )
@@ -123,7 +125,11 @@ data class ActiveMotionInfo(
     val summary: String? = null,
     @SerialName("is_nominal")
     val isNominal: Boolean,
-    val status: String
+    val status: String,
+    @SerialName("presiding_officer_id")
+    val presidingOfficerId: String? = null,
+    @SerialName("president_votes_ordinarily")
+    val presidentVotesOrdinarily: Boolean = true
 )
 
 /**
@@ -186,6 +192,9 @@ data class OrchestratorEvent(
 
         /** A motion was aborted by the Presidency — clears vote lock-out. */
         const val MOTION_ABORTED = "MOTION_ABORTED"
+
+        /** A motion resulted in a tie — triggers presidential tie-breaker flow. */
+        const val MOTION_TIED = "MOTION_TIED"
 
         /** Remote device revocation — triggers local wipe protocol. */
         const val DEVICE_WIPE_COMMAND = "DEVICE_WIPE_COMMAND"

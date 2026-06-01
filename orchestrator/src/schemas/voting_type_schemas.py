@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
-from decimal import Decimal
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from src.models.voting_type import CalculationBase
 
 class VotingTypeCreate(BaseModel):
     name: Annotated[
@@ -12,9 +13,10 @@ class VotingTypeCreate(BaseModel):
     ]
     allows_abstentions: bool = True
     approval_threshold: Annotated[
-        Decimal,
-        Field(gt=0, le=100, decimal_places=2),
+        float,
+        Field(ge=0, le=100, decimal_places=2),
     ]
+    calc_base: CalculationBase = CalculationBase.VOTES_CAST
 
 class VotingTypeUpdate(BaseModel):
     name: Annotated[
@@ -23,9 +25,10 @@ class VotingTypeUpdate(BaseModel):
     ]
     allows_abstentions: bool | None = None
     approval_threshold: Annotated[
-        Decimal | None,
-        Field(default=None, gt=0, le=100, decimal_places=2),
+        float | None,
+        Field(default=None, ge=0, le=100, decimal_places=2),
     ]
+    calc_base: CalculationBase | None = None
 
 class VotingTypeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -33,7 +36,8 @@ class VotingTypeResponse(BaseModel):
     id: uuid.UUID
     name: str
     allows_abstentions: bool
-    approval_threshold: Decimal
+    approval_threshold: float
+    calc_base: CalculationBase
     created_at: datetime
     updated_at: datetime | None = None
     deleted_at: datetime | None = None

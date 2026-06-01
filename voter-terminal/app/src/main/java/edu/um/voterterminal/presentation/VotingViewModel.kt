@@ -40,10 +40,23 @@ class VotingViewModel @Inject constructor(
 
     val uiState: StateFlow<VotingState> = sessionManager.state
 
+    /** Exposes the locally stored legislator ID for presidential identity checks in the UI layer. */
+    val legislatorId: String?
+        get() = securePrefsManager.legislatorId
+
     init {
         initializeSession()
     }
 
+    /**
+     * Hydrates the terminal state from the Orchestrator REST API.
+     *
+     * Handles three motion scenarios:
+     * - `VOTING_OPEN`: Rebuilds [VotingState.VotingOpen] with presidential fields.
+     * - `TIED`: Performs presidential identity comparison and transitions to
+     *   [VotingState.TieBreakerActive] or [VotingState.MotionTiedIdle].
+     * - No active motion / other status: Transitions to [VotingState.Idle].
+     */
     private fun initializeSession() {
         if (securePrefsManager.deviceToken == null) {
             sessionManager.updateState(VotingState.Unprovisioned)
@@ -54,20 +67,40 @@ class VotingViewModel @Inject constructor(
             try {
                 val sessionResponse = orchestratorClient.getCurrentSession()
                 val activeMotion = sessionResponse.activeMotion
-                
-                val initialState = if (activeMotion != null && activeMotion.status == "VOTING_OPEN") {
-                    VotingState.VotingOpen(
-                        motionId = activeMotion.id,
-                        title = activeMotion.title,
-                        summary = activeMotion.summary ?: "",
-                        allowsAbstentions = true, // Default; full data comes via WS
-                        isNominal = activeMotion.isNominal,
-                        ephemeralPublicKey = sessionResponse.session.ephemeralPublicKey
-                    )
-                } else {
-                    VotingState.Idle
+
+                val initialState = when {
+                    activeMotion != null && activeMotion.status == "VOTING_OPEN" -> {
+                        VotingState.VotingOpen(
+                            motionId = activeMotion.id,
+                            title = activeMotion.title,
+                            summary = activeMotion.summary ?: "",
+                            allowsAbstentions = true, // Default; full data comes via WS
+                            isNominal = activeMotion.isNominal,
+                            ephemeralPublicKey = sessionResponse.session.ephemeralPublicKey,
+                            presidingOfficerId = activeMotion.presidingOfficerId
+                                ?: sessionResponse.session.presidingOfficerId,
+                            presidentVotesOrdinarily = activeMotion.presidentVotesOrdinarily
+                        )
+                    }
+                    activeMotion != null && activeMotion.status == "TIED" -> {
+                        // Presidential identity comparison for tie-breaker routing
+                        val presidingOfficerId = activeMotion.presidingOfficerId
+                            ?: sessionResponse.session.presidingOfficerId
+                        val localLegislatorId = securePrefsManager.legislatorId
+
+                        if (localLegislatorId != null && localLegislatorId == presidingOfficerId) {
+                            VotingState.TieBreakerActive(
+                                motionId = activeMotion.id,
+                                title = activeMotion.title,
+                                summary = activeMotion.summary ?: ""
+                            )
+                        } else {
+                            VotingState.MotionTiedIdle
+                        }
+                    }
+                    else -> VotingState.Idle
                 }
-                
+
                 sessionManager.updateState(initialState)
                 startKeepAliveService()
             } catch (e: Exception) {
@@ -174,6 +207,52 @@ class VotingViewModel @Inject constructor(
                 
                 sessionManager.markVoteSubmitted()
                 
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * Submits a presidential tie-breaker vote for the currently tied motion.
+     *
+     * Follows the identical cryptographic flow as a nominal [submitVote]:
+     * canonicalize → biometric sign → POST. The only difference is the
+     * endpoint ([OrchestratorClient.castTieBreakerVote]) and the state
+     * transition ([VotingState.TieBreakerLocked]).
+     *
+     * @param activity The [FragmentActivity] required for the BiometricPrompt dialog.
+     * @param voteValue The deciding vote: "AFFIRMATIVE" or "NEGATIVE" (no abstention on tie-break).
+     */
+    fun submitTieBreakerVote(activity: FragmentActivity, voteValue: String) {
+        val currentState = uiState.value
+        if (currentState !is VotingState.TieBreakerActive) return
+
+        viewModelScope.launch {
+            try {
+                val timestamp = System.currentTimeMillis()
+                val legislatorId = securePrefsManager.legislatorId
+                    ?: throw IllegalStateException("Legislator ID missing")
+
+                val unsignedRequest = NominalVoteRequest(
+                    motionId = currentState.motionId,
+                    legislatorId = legislatorId,
+                    voteValue = voteValue,
+                    timestamp = timestamp,
+                    cryptographicSignature = "" // Placeholder for canonicalization
+                )
+
+                val canonicalJson = PayloadCanonicalizer.buildNominalPayload(unsignedRequest)
+                val signature = biometricSigner.authenticateAndSign(
+                    activity,
+                    canonicalJson.toByteArray(Charsets.UTF_8)
+                )
+
+                val signedRequest = unsignedRequest.copy(cryptographicSignature = signature)
+                orchestratorClient.castTieBreakerVote(signedRequest)
+
+                sessionManager.markTieBreakerSubmitted()
+
             } catch (e: Exception) {
                 e.printStackTrace()
             }

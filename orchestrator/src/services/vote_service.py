@@ -4,9 +4,15 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import verify_secp256r1_signature
+from src.models.motion import Motion, MotionStatus
 from src.models.nominal_vote import NominalVote, NominalVoteValue
 from src.models.non_nominal_vote import NonNominalVote
-from src.repositories import legislator_repository, vote_repository
+from src.repositories import (
+    legislator_repository,
+    legislative_session_repository,
+    motion_repository,
+    vote_repository,
+)
 
 async def cast_nominal_vote(
     db_session: AsyncSession,
@@ -95,6 +101,87 @@ async def cast_non_nominal_vote(
     )
 
     return await vote_repository.create_non_nominal_vote(db_session, vote=vote)
+
+async def cast_tie_breaker_vote(
+    db_session: AsyncSession,
+    *,
+    motion_id: uuid.UUID,
+    legislator_id: uuid.UUID,
+    vote_value: NominalVoteValue,
+    timestamp: int,
+    cryptographic_signature: str,
+) -> Motion:
+    if vote_value == NominalVoteValue.ABSTENTION:
+        raise ValueError(
+            "Tie-breaker vote cannot be an abstention. "
+            "Only AFFIRMATIVE or NEGATIVE are permitted.",
+        )
+
+    # Retrieve and validate the motion.
+    motion = await motion_repository.get_by_id(db_session, motion_id)
+    if motion is None or motion.deleted_at is not None:
+        raise ValueError("Motion not found.")
+
+    if motion.status != MotionStatus.TIED:
+        raise ValueError(
+            "Tie-breaker vote is only allowed when motion status is 'TIED'.",
+        )
+
+    # Retrieve the legislative session to verify presidential identity.
+    leg_session = await legislative_session_repository.get_by_id(
+        db_session, motion.legislative_session_id,
+    )
+    if leg_session is None:
+        raise ValueError("Legislative session not found.")
+
+    if leg_session.presiding_officer_id is None:
+        raise ValueError(
+            "No presiding officer configured for this session.",
+        )
+
+    if legislator_id != leg_session.presiding_officer_id:
+        raise ValueError(
+            "Tie-breaker vote must be cast by the presiding officer.",
+        )
+
+    # Verify the cryptographic signature.
+    legislator = await legislator_repository.get_by_id(db_session, legislator_id)
+    if legislator is None or legislator.deleted_at is not None:
+        raise ValueError("Legislator not found.")
+
+    if legislator.current_public_key is None:
+        raise ValueError("Legislator has no registered public key.")
+
+    canonical_payload = json.dumps(
+        {
+            "legislator_id": str(legislator_id),
+            "motion_id": str(motion_id),
+            "timestamp": timestamp,
+            "vote_value": vote_value.value,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+    if not verify_secp256r1_signature(
+        public_key_hex=legislator.current_public_key,
+        payload=canonical_payload,
+        signature_hex=cryptographic_signature,
+    ):
+        raise ValueError("Cryptographic signature verification failed.")
+
+    # Record the deciding vote on the motion itself.
+    motion.tie_breaker_vote_value = vote_value.value
+
+    # Determine the final result based on the tie-breaker.
+    if vote_value == NominalVoteValue.AFFIRMATIVE:
+        motion.result = "PASSED"
+    else:
+        motion.result = "FAILED"
+
+    motion.status = MotionStatus.RESOLVED
+    await db_session.flush()
+    return motion
 
 async def get_non_nominal_votes(
     db_session: AsyncSession,

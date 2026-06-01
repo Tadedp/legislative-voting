@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -54,3 +54,11 @@ async def create_device(db: AsyncSession, *, device: Device) -> Device:
     db.add(device)
     await db.flush()
     return device
+
+async def count_active_legislators(db: AsyncSession) -> int:    
+    stmt = (
+        select(func.count(Legislator.id))
+        .where(Legislator.deleted_at.is_(None))
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one()

@@ -1,6 +1,6 @@
+import uuid
 from datetime import datetime, timezone
 from typing import Any
-import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,16 +27,21 @@ async def create_voting_type(
     name: str,
     allows_abstentions: bool = True,
     approval_threshold: float,
+    calc_base: str | None = None,
 ) -> VotingType:
     existing = await voting_type_repository.get_by_name(db, name)
     if existing is not None:
         raise ValueError(f"Voting type with name '{name}' already exists.")
 
-    voting_type = VotingType(
-        name=name,
-        allows_abstentions=allows_abstentions,
-        approval_threshold=approval_threshold,
-    )
+    kwargs: dict[str, object] = {
+        "name": name,
+        "allows_abstentions": allows_abstentions,
+        "approval_threshold": approval_threshold,
+    }
+    if calc_base is not None:
+        kwargs["calc_base"] = calc_base
+
+    voting_type = VotingType(**kwargs)
 
     return await voting_type_repository.create(db, voting_type=voting_type)
 

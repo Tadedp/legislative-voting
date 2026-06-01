@@ -4,9 +4,11 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.websocket import ConnectionManager
 from src.models.legislative_session import LegislativeSession, LegSessionStatus
 from src.models.motion import Motion
 from src.repositories import legislative_session_repository, motion_repository
+from src.services.quorum_service import compute_quorum_minimum, get_session_quorum
 
 async def list_legislative_sessions(db: AsyncSession) -> list[LegislativeSession]:
     return await legislative_session_repository.get_all_active(db)
@@ -26,8 +28,16 @@ async def create_legislative_session(
     db: AsyncSession,
     *,
     title: str,
+    pres_type: str | None = None,
+    presiding_officer_id: uuid.UUID | None = None,
 ) -> LegislativeSession:
-    session = LegislativeSession(title=title)
+    kwargs: dict[str, Any] = {"title": title}
+    if pres_type is not None:
+        kwargs["pres_type"] = pres_type
+    if presiding_officer_id is not None:
+        kwargs["presiding_officer_id"] = presiding_officer_id
+
+    session = LegislativeSession(**kwargs)
     return await legislative_session_repository.create(db, session=session)
 
 async def update_legislative_session(
@@ -92,6 +102,7 @@ async def update_legislative_session_status(
     session_id: uuid.UUID,
     *,
     new_status: LegSessionStatus,
+    ws_manager: ConnectionManager,
 ) -> LegislativeSession:
     session = await legislative_session_repository.get_by_id(db, session_id)
 
@@ -100,8 +111,22 @@ async def update_legislative_session_status(
 
     now = datetime.now(timezone.utc)
 
-    if new_status == LegSessionStatus.ACTIVE and session.opened_at is None:
-        session.opened_at = now
+    # Quorum guard: prevent activation without sufficient legislators.
+    if new_status == LegSessionStatus.ACTIVE:
+        quorum_present, total_members = await get_session_quorum(
+            db, session, ws_manager,
+        )
+        quorum_minimum = compute_quorum_minimum(total_members)
+
+        if quorum_present < quorum_minimum:
+            raise ValueError(
+                f"No quorum: {quorum_present} legislators present, "
+                f"{quorum_minimum} required (out of {total_members} total).",
+            )
+
+        if session.opened_at is None:
+            session.opened_at = now
+
     elif new_status == LegSessionStatus.CLOSED:
         session.closed_at = now
 

@@ -39,6 +39,19 @@ class SessionManager @Inject constructor(
     }
 
     /**
+     * Marks the presidential tie-breaker vote as successfully submitted.
+     * Transitions from TieBreakerActive to TieBreakerLocked, retaining the
+     * original state context so the UI remains on the distinct Gold/Purple
+     * tie-breaker screen with a success overlay.
+     */
+    fun markTieBreakerSubmitted() {
+        val currentState = _state.value
+        if (currentState is VotingState.TieBreakerActive) {
+            updateState(VotingState.TieBreakerLocked(currentState))
+        }
+    }
+
+    /**
      * Executes the Remote Device Wipe Protocol.
      * Clears all local secure data and permanently locks the UI state.
      */

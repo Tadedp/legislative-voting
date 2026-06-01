@@ -20,7 +20,9 @@ import edu.um.voterterminal.presentation.VotingState
 import edu.um.voterterminal.presentation.VotingViewModel
 import edu.um.voterterminal.ui.screens.DeviceRevokedScreen
 import edu.um.voterterminal.ui.screens.IdleScreen
+import edu.um.voterterminal.ui.screens.MotionTiedIdleScreen
 import edu.um.voterterminal.ui.screens.ProvisioningScreen
+import edu.um.voterterminal.ui.screens.TieBreakerScreen
 import edu.um.voterterminal.ui.screens.VotingScreen
 import edu.um.voterterminal.ui.theme.VoterTerminalTheme
 
@@ -40,9 +42,11 @@ class MainActivity : FragmentActivity() {
                 val uiState by viewModel.uiState.collectAsState()
 
                 // Security Mitigation: Dynamic Screen Wake Lock
-                // Keeps Wi-Fi active and screen on ONLY during a critical vote
+                // Keeps Wi-Fi active and screen on during critical voting states
                 LaunchedEffect(uiState) {
-                    if (uiState is VotingState.VotingOpen) {
+                    val keepScreenOn = uiState is VotingState.VotingOpen
+                            || uiState is VotingState.TieBreakerActive
+                    if (keepScreenOn) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     } else {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -83,9 +87,14 @@ fun VoterTerminalRouter(
                 IdleScreen()
             }
             is VotingState.VotingOpen -> {
+                // Presidential identity comparison for UI forking
+                val isPresident = viewModel.legislatorId != null
+                        && viewModel.legislatorId == state.presidingOfficerId
                 VotingScreen(
                     state = state,
                     isLocked = false,
+                    isPresident = isPresident,
+                    presidentVotesOrdinarily = state.presidentVotesOrdinarily,
                     onVoteClicked = { voteValue ->
                         viewModel.submitVote(activity, voteValue)
                     }
@@ -95,7 +104,26 @@ fun VoterTerminalRouter(
                 VotingScreen(
                     state = state.originalState,
                     isLocked = true,
-                    onVoteClicked = { /* Ignored */ }
+                    onVoteClicked = { /* Ignored — vote already submitted */ }
+                )
+            }
+            is VotingState.MotionTiedIdle -> {
+                MotionTiedIdleScreen()
+            }
+            is VotingState.TieBreakerActive -> {
+                TieBreakerScreen(
+                    state = state,
+                    isLocked = false,
+                    onVoteClicked = { voteValue ->
+                        viewModel.submitTieBreakerVote(activity, voteValue)
+                    }
+                )
+            }
+            is VotingState.TieBreakerLocked -> {
+                TieBreakerScreen(
+                    state = state.originalState,
+                    isLocked = true,
+                    onVoteClicked = { /* Ignored — tie-breaker vote already submitted */ }
                 )
             }
             is VotingState.DeviceRevoked -> {
@@ -103,4 +131,4 @@ fun VoterTerminalRouter(
             }
         }
     }
-}
+}

@@ -1,4 +1,3 @@
-
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
@@ -11,6 +10,7 @@ from src.models.system_user import SystemUserRole
 from src.models.motion import MotionStatus
 from src.schemas.motion_schemas import (
     MotionCreate,
+    MotionResolveRequest,
     MotionResponse,
     MotionStatusUpdate,
     MotionUpdate,
@@ -36,7 +36,7 @@ async def list_motions(
         motions = await motion_service.list_motions_by_session(db_session, legislative_session_id)
     except ValueError as exc:
         raise NotFoundException(str(exc))
-    
+
     return [MotionResponse.model_validate(m) for m in motions]
 
 @motion_router.post(
@@ -60,10 +60,11 @@ async def create_motion(
             summary=body.summary,
             voting_type_id=body.voting_type_id,
             is_nominal=body.is_nominal,
+            president_votes_ordinarily=body.president_votes_ordinarily,
         )
     except ValueError as exc:
         raise NotFoundException(str(exc))
-    
+
     return MotionResponse.model_validate(motion)
 
 @motion_router.get(
@@ -80,7 +81,7 @@ async def get_motion(
         motion = await motion_service.get_motion(db_session, motion_id)
     except ValueError as exc:
         raise NotFoundException(str(exc))
-    
+
     return MotionResponse.model_validate(motion)
 
 @motion_router.patch(
@@ -106,7 +107,7 @@ async def update_motion(
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
-    
+
     return MotionResponse.model_validate(motion)
 
 @motion_router.delete(
@@ -124,14 +125,17 @@ async def delete_motion(
         motion = await motion_service.soft_delete_motion(db_session, motion_id)
     except ValueError as exc:
         raise ConflictException(str(exc))
-    
+
     return MotionResponse.model_validate(motion)
 
 @motion_router.patch(
     "/motions/{motion_id}/status",
     response_model=MotionResponse,
     summary="Update motion status",
-    description="Transition: VOTING_OPEN, VOTING_CLOSED, RESOLVED.",
+    description=(
+        "Transition: VOTING_OPEN (with quorum guard), VOTING_CLOSED. "
+        "Quorum is validated when transitioning to VOTING_OPEN."
+    ),
     dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
 )
 async def update_motion_status(
@@ -142,7 +146,10 @@ async def update_motion_status(
 ) -> MotionResponse:
     try:
         motion = await motion_service.update_motion_status(
-            db_session, motion_id, new_status=body.status,
+            db_session,
+            motion_id,
+            new_status=body.status,
+            ws_manager=manager,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
@@ -190,6 +197,84 @@ async def update_motion_status(
     return response
 
 @motion_router.post(
+    "/motions/{motion_id}/resolve",
+    response_model=MotionResponse,
+    summary="Submit final tally and resolve a motion",
+    description=(
+        "Runs the calculation engine on the final vote tally to determine "
+        "whether the motion PASSED, FAILED, or TIED. For nominal motions, "
+        "vote counts are auto-computed from the database. For non-nominal "
+        "motions, the Presidency must provide the decrypted tallies."
+    ),
+    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
+)
+async def resolve_motion(
+    db_session: DbSessionDep,
+    background_tasks: BackgroundTasks,
+    motion_id: uuid.UUID,
+    body: MotionResolveRequest,
+) -> MotionResponse:
+    try:
+        motion = await motion_service.resolve_motion(
+            db_session,
+            motion_id,
+            affirmative=body.affirmative,
+            negative=body.negative,
+            abstentions=body.abstentions,
+            ws_manager=manager,
+        )
+    except ValueError as exc:
+        raise ConflictException(str(exc))
+
+    response = MotionResponse.model_validate(motion)
+
+    background_tasks.add_task(
+        manager.broadcast,
+        "MOTION_RESOLVED",
+        {
+            "motion_id": str(motion_id),
+            "result": response.result,
+            "new_status": response.status.value,
+            "legislative_session_id": str(response.legislative_session_id),
+        },
+    )
+
+    return response
+
+@motion_router.post(
+    "/motions/{motion_id}/reopen",
+    response_model=MotionResponse,
+    summary="Reopen a tied motion",
+    description=(
+        "Reverts a TIED motion to DRAFT for renewed debate and revote. "
+        "Voids existing non-nominal votes and clears temporal markers."
+    ),
+    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
+)
+async def reopen_motion(
+    db_session: DbSessionDep,
+    background_tasks: BackgroundTasks,
+    motion_id: uuid.UUID,
+) -> MotionResponse:
+    try:
+        motion = await motion_service.reopen_motion(db_session, motion_id)
+    except ValueError as exc:
+        raise ConflictException(str(exc))
+
+    response = MotionResponse.model_validate(motion)
+
+    background_tasks.add_task(
+        manager.broadcast,
+        "MOTION_REOPENED",
+        {
+            "motion_id": str(motion_id),
+            "legislative_session_id": str(response.legislative_session_id),
+        },
+    )
+
+    return response
+
+@motion_router.post(
     "/motions/{motion_id}/abort",
     response_model=MotionResponse,
     summary="Abort a motion",
@@ -208,9 +293,9 @@ async def abort_motion(
         motion = await motion_service.abort_motion(db_session, motion_id)
     except ValueError as exc:
         raise ConflictException(str(exc))
-    
+
     response = MotionResponse.model_validate(motion)
-    
+
     background_tasks.add_task(
         manager.broadcast,
         "MOTION_ABORTED",

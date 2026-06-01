@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
+import edu.um.voterterminal.data.local.SecurePrefsManager
 import edu.um.voterterminal.data.network.OrchestratorClient
 import edu.um.voterterminal.data.network.OrchestratorEvent
 import edu.um.voterterminal.domain.SessionManager
@@ -36,6 +37,9 @@ class SessionKeepAliveService : Service() {
 
     @Inject
     lateinit var sessionManager: SessionManager
+
+    @Inject
+    lateinit var securePrefsManager: SecurePrefsManager
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -75,6 +79,8 @@ class SessionKeepAliveService : Service() {
                         val allowsAbstentions = event.data["allows_abstentions"]?.jsonPrimitive?.boolean ?: true
                         val isNominal = event.data["is_nominal"]?.jsonPrimitive?.boolean ?: true
                         val ephemeralPublicKey = event.data["ephemeral_public_key"]?.jsonPrimitive?.content
+                        val presidingOfficerId = event.data["presiding_officer_id"]?.jsonPrimitive?.content
+                        val presidentVotesOrdinarily = event.data["president_votes_ordinarily"]?.jsonPrimitive?.boolean ?: true
 
                         sessionManager.updateState(
                             VotingState.VotingOpen(
@@ -83,9 +89,30 @@ class SessionKeepAliveService : Service() {
                                 summary = summary,
                                 allowsAbstentions = allowsAbstentions,
                                 isNominal = isNominal,
-                                ephemeralPublicKey = ephemeralPublicKey
+                                ephemeralPublicKey = ephemeralPublicKey,
+                                presidingOfficerId = presidingOfficerId,
+                                presidentVotesOrdinarily = presidentVotesOrdinarily
                             )
                         )
+                    }
+                    OrchestratorEvent.MOTION_TIED -> {
+                        val motionId = event.data["motion_id"]?.jsonPrimitive?.content ?: ""
+                        val title = event.data["title"]?.jsonPrimitive?.content ?: "Unknown Motion"
+                        val summary = event.data["summary"]?.jsonPrimitive?.content ?: ""
+                        val presidingOfficerId = event.data["presiding_officer_id"]?.jsonPrimitive?.content
+                        val legislatorId = securePrefsManager.legislatorId
+
+                        // Presidential identity comparison: route to the appropriate tie state
+                        val tieState = if (legislatorId != null && legislatorId == presidingOfficerId) {
+                            VotingState.TieBreakerActive(
+                                motionId = motionId,
+                                title = title,
+                                summary = summary
+                            )
+                        } else {
+                            VotingState.MotionTiedIdle
+                        }
+                        sessionManager.updateState(tieState)
                     }
                     OrchestratorEvent.MOTION_CLOSED,
                     OrchestratorEvent.MOTION_ABORTED -> {

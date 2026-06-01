@@ -1,13 +1,15 @@
+import uuid
 from datetime import datetime
 from enum import unique, StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, func, text, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, func, text, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from src.models.legislator import Legislator
     from src.models.motion import Motion
 
 @unique
@@ -16,6 +18,19 @@ class LegSessionStatus(StrEnum):
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
     CLOSED = "CLOSED"
+    
+@unique
+class PresidentType(StrEnum):
+    """Defines the constitutional role of the presiding officer.
+
+    EX_OFFICIO: External president; does not count toward quorum or vote
+                ordinarily. May only cast a tie-breaking vote.
+    LEGISLATOR: President who is also a member of the legislative body.
+                Counts toward quorum and may vote ordinarily.
+    """
+
+    EX_OFFICIO = "EX_OFFICIO"
+    LEGISLATOR = "LEGISLATOR"
 
 class LegislativeSession(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
     __tablename__ = "legislative_sessions"
@@ -46,9 +61,23 @@ class LegislativeSession(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         server_default=func.now(),
         nullable=False,
     )
+    pres_type: Mapped[PresidentType] = mapped_column(
+        Enum(PresidentType, name="president_type"),
+        server_default=text("'EX_OFFICIO'"),
+        nullable=False,
+    )
+    presiding_officer_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("legislators.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     motions: Mapped[list[Motion]] = relationship(
         "Motion",
         back_populates="legislative_session",
+        lazy="raise_on_sql",
+    )
+    presiding_officer: Mapped[Legislator | None] = relationship(
+        "Legislator",
+        foreign_keys=[presiding_officer_id],
         lazy="raise_on_sql",
     )

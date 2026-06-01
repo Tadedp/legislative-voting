@@ -8,10 +8,12 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Integer,
     func,
     Index,
     text,
     Text,
+    false,
     true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,6 +32,7 @@ class MotionStatus(StrEnum):
     VOTING_OPEN = "VOTING_OPEN"
     VOTING_CLOSED = "VOTING_CLOSED"
     RESOLVED = "RESOLVED"
+    TIED = "TIED"
     ABORTED = "ABORTED"
 
 class Motion(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
@@ -60,6 +63,23 @@ class Motion(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         Enum(MotionStatus, name="motion_status"),
         server_default=text("'DRAFT'"),
         nullable=False,
+    )
+    result: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    quorum_present_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    president_votes_ordinarily: Mapped[bool] = mapped_column(
+        Boolean,
+        server_default=false(),
+        nullable=False,
+    )
+    tie_breaker_vote_value: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
     )
     opened_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

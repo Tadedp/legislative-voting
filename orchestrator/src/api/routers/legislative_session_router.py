@@ -90,7 +90,7 @@ async def get_current_legislative_session(
 @legislative_session_router.get(
     "/{legislative_session_id}",
     response_model=LegislativeSessionResponse,
-    summary="Get legislative session by ID",    
+    summary="Get legislative session by ID",
     dependencies=[Depends(get_current_user)],
 )
 async def get_legislative_session(
@@ -99,12 +99,12 @@ async def get_legislative_session(
 ) -> LegislativeSessionResponse:
     try:
         legislative_session = await legislative_session_service.get_legislative_session(
-            db_session, 
+            db_session,
             legislative_session_id,
         )
     except ValueError as exc:
         raise NotFoundException(str(exc))
-    
+
     return LegislativeSessionResponse.model_validate(legislative_session)
 
 @legislative_session_router.post(
@@ -112,7 +112,7 @@ async def get_legislative_session(
     response_model=LegislativeSessionResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new legislative session",
-    description="Status defaults to PENDING.",
+    description="Status defaults to PENDING. Accepts presidential configuration.",
     dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
 )
 async def create_legislative_session(
@@ -120,7 +120,10 @@ async def create_legislative_session(
     body: LegislativeSessionCreate,
 ) -> LegislativeSessionResponse:
     legislative_session = await legislative_session_service.create_legislative_session(
-        db_session, title=body.title,
+        db_session,
+        title=body.title,
+        pres_type=body.pres_type,
+        presiding_officer_id=body.presiding_officer_id,
     )
     return LegislativeSessionResponse.model_validate(legislative_session)
 
@@ -147,7 +150,7 @@ async def update_legislative_session(
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
-    
+
     return LegislativeSessionResponse.model_validate(legislative_session)
 
 @legislative_session_router.delete(
@@ -167,7 +170,7 @@ async def delete_legislative_session(
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
-    
+
     return LegislativeSessionResponse.model_validate(legislative_session)
 
 @legislative_session_router.post(
@@ -188,14 +191,17 @@ async def set_ephemeral_key(
         )
     except ValueError as exc:
         raise NotFoundException(str(exc))
-    
+
     return LegislativeSessionResponse.model_validate(legislative_session)
 
 @legislative_session_router.patch(
     "/{legislative_session_id}/status",
     response_model=LegislativeSessionResponse,
-    summary="Update legislative legislative session status",
-    description="Transition: ACTIVE, PAUSED, CLOSED.",
+    summary="Update legislative session status",
+    description=(
+        "Transition: ACTIVE, PAUSED, CLOSED. "
+        "Quorum is validated when transitioning to ACTIVE."
+    ),
     dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
 )
 async def update_legislative_session_status(
@@ -206,11 +212,14 @@ async def update_legislative_session_status(
 ) -> LegislativeSessionResponse:
     try:
         legislative_session = await legislative_session_service.update_legislative_session_status(
-            db_session, legislative_session_id, new_status=body.status,
+            db_session,
+            legislative_session_id,
+            new_status=body.status,
+            ws_manager=manager,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
-    
+
     response = LegislativeSessionResponse.model_validate(legislative_session)
 
     background_tasks.add_task(

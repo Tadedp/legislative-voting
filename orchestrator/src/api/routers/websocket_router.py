@@ -14,6 +14,7 @@ async def ws_state(
     websocket: WebSocket,
     device_token: str = Query(),
 ) -> None:
+    """Authenticate a voter terminal and maintain a persistent WebSocket."""
     async with db_session_factory() as db_session:
         device = await device_repository.get_active_device_by_token(
             db_session, device_token,
@@ -23,7 +24,11 @@ async def ws_state(
         await websocket.close(code=1008, reason="Invalid or inactive device token.")
         return
 
-    await manager.connect(websocket, device_token)
+    await manager.connect(
+        websocket,
+        device_token,
+        legislator_id=device.legislator_id,
+    )
 
     try:
         while True:

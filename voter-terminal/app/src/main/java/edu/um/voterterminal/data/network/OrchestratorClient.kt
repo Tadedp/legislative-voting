@@ -176,6 +176,24 @@ class OrchestratorClient @Inject constructor(
         return response.body()
     }
 
+    /**
+     * Submits a presidential tie-breaker vote with a plaintext signed payload.
+     *
+     * Reuses [NominalVoteRequest] because a tie-breaker is inherently
+     * nominal (public, roll-call). Auth is exclusively via the cryptographic
+     * signature in the request body — no device token header required.
+     */
+    suspend fun castTieBreakerVote(request: NominalVoteRequest): VoteResponse {
+        val response = httpClient.post("$httpBaseUrl/votes/tie-breaker") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
+        }
+        return response.body()
+    }
+
     // -----------------------------------------------------------------------
     // WebSocket: State Stream
     // -----------------------------------------------------------------------

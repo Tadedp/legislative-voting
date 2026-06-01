@@ -66,6 +66,7 @@ async def create_voting_type(
             name=body.name,
             allows_abstentions=body.allows_abstentions,
             approval_threshold=body.approval_threshold,
+            calc_base=body.calc_base,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
