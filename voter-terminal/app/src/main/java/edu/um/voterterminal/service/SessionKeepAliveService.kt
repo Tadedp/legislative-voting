@@ -22,12 +22,17 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 
 /**
  * Foreground Service responsible for maintaining the Ktor WebSocket connection
  * alive even when the app is backgrounded, mitigating Doze mode.
+ *
+ * Parses Orchestrator WebSocket events and transitions the UI state via
+ * [SessionManager]. Event names follow the `VOTING_ROUND_*` convention
+ * aligned with the Orchestrator's domain-separated architecture.
  */
 @AndroidEntryPoint
 class SessionKeepAliveService : Service() {
@@ -72,21 +77,28 @@ class SessionKeepAliveService : Service() {
         serviceScope.launch {
             orchestratorClient.observeState().collect { event ->
                 when (event.eventType) {
-                    OrchestratorEvent.MOTION_OPENED -> {
-                        val motionId = event.data["motion_id"]?.jsonPrimitive?.content ?: ""
-                        val title = event.data["title"]?.jsonPrimitive?.content ?: "Unknown Motion"
-                        val summary = event.data["summary"]?.jsonPrimitive?.content ?: ""
+                    OrchestratorEvent.VOTING_ROUND_OPENED -> {
+                        val votingRoundId = event.data["voting_round_id"]?.jsonPrimitive?.content ?: ""
+                        val stage = event.data["stage"]?.jsonPrimitive?.content ?: "SINGLE"
+                        val specificReference = event.data["specific_reference"]?.jsonPrimitive?.content
                         val allowsAbstentions = event.data["allows_abstentions"]?.jsonPrimitive?.boolean ?: true
                         val isNominal = event.data["is_nominal"]?.jsonPrimitive?.boolean ?: true
                         val ephemeralPublicKey = event.data["ephemeral_public_key"]?.jsonPrimitive?.content
                         val presidingOfficerId = event.data["presiding_officer_id"]?.jsonPrimitive?.content
                         val presidentVotesOrdinarily = event.data["president_votes_ordinarily"]?.jsonPrimitive?.boolean ?: true
 
+                        // Extract nested agenda_item context for display
+                        val agendaItem = event.data["agenda_item"]?.jsonObject
+                        val title = agendaItem?.get("title")?.jsonPrimitive?.content ?: "Unknown"
+                        val summary = agendaItem?.get("summary")?.jsonPrimitive?.content ?: ""
+
                         sessionManager.updateState(
                             VotingState.VotingOpen(
-                                motionId = motionId,
+                                votingRoundId = votingRoundId,
                                 title = title,
                                 summary = summary,
+                                stage = stage,
+                                specificReference = specificReference,
                                 allowsAbstentions = allowsAbstentions,
                                 isNominal = isNominal,
                                 ephemeralPublicKey = ephemeralPublicKey,
@@ -95,28 +107,71 @@ class SessionKeepAliveService : Service() {
                             )
                         )
                     }
-                    OrchestratorEvent.MOTION_TIED -> {
-                        val motionId = event.data["motion_id"]?.jsonPrimitive?.content ?: ""
-                        val title = event.data["title"]?.jsonPrimitive?.content ?: "Unknown Motion"
-                        val summary = event.data["summary"]?.jsonPrimitive?.content ?: ""
+                    OrchestratorEvent.VOTING_ROUND_TIED -> {
+                        val votingRoundId = event.data["voting_round_id"]?.jsonPrimitive?.content ?: ""
                         val presidingOfficerId = event.data["presiding_officer_id"]?.jsonPrimitive?.content
                         val legislatorId = securePrefsManager.legislatorId
+
+                        // Extract stage context for badge rendering on the tie-breaker screen.
+                        // The current VotingOpen state carries the original stage/reference;
+                        // fall back to it if the TIED event doesn't include them.
+                        val currentState = sessionManager.state.value
+                        val stage = if (currentState is VotingState.VotingOpen) currentState.stage else "SINGLE"
+                        val specificReference = if (currentState is VotingState.VotingOpen) currentState.specificReference else null
+                        val title = if (currentState is VotingState.VotingOpen) currentState.title else "Unknown"
+                        val summary = if (currentState is VotingState.VotingOpen) currentState.summary else ""
 
                         // Presidential identity comparison: route to the appropriate tie state
                         val tieState = if (legislatorId != null && legislatorId == presidingOfficerId) {
                             VotingState.TieBreakerActive(
-                                motionId = motionId,
+                                votingRoundId = votingRoundId,
                                 title = title,
-                                summary = summary
+                                summary = summary,
+                                stage = stage,
+                                specificReference = specificReference
                             )
                         } else {
                             VotingState.MotionTiedIdle
                         }
                         sessionManager.updateState(tieState)
                     }
-                    OrchestratorEvent.MOTION_CLOSED,
-                    OrchestratorEvent.MOTION_ABORTED -> {
+                    OrchestratorEvent.VOTING_ROUND_CLOSED,
+                    OrchestratorEvent.VOTING_ROUND_ABORTED,
+                    OrchestratorEvent.VOTING_ROUND_RESOLVED -> {
+                        // We do not blindly go to Idle because the AgendaItem might still be on the floor.
+                        // For a robust reactive UI, we can just fetch the REST state, or let the Presidency
+                        // trigger an AGENDA_ITEM_UPDATED if they change its status. For now, we fallback to Idle.
+                        // A better approach would be to check if the item is still in DEBATE, but the event doesn't carry it.
                         sessionManager.updateState(VotingState.Idle)
+                    }
+                    OrchestratorEvent.AGENDA_ITEM_UPDATED -> {
+                        val status = event.data["status"]?.jsonPrimitive?.content ?: ""
+                        val currentState = sessionManager.state.value
+                        
+                        // We only transition if we are not currently in an active voting flow
+                        val isVotingFlow = currentState is VotingState.VotingOpen || 
+                                           currentState is VotingState.VoteLocked || 
+                                           currentState is VotingState.TieBreakerActive || 
+                                           currentState is VotingState.TieBreakerLocked ||
+                                           currentState is VotingState.MotionTiedIdle
+                        
+                        if (!isVotingFlow) {
+                            if (status == "DEBATE" || status == "APPROVED_IN_GENERAL") {
+                                val agendaItemId = event.data["id"]?.jsonPrimitive?.content ?: ""
+                                val title = event.data["title"]?.jsonPrimitive?.content ?: ""
+                                val summary = event.data["summary"]?.jsonPrimitive?.content ?: ""
+                                
+                                sessionManager.updateState(
+                                    VotingState.DebateIdle(
+                                        agendaItemId = agendaItemId,
+                                        title = title,
+                                        summary = summary
+                                    )
+                                )
+                            } else {
+                                sessionManager.updateState(VotingState.Idle)
+                            }
+                        }
                     }
                     OrchestratorEvent.DEVICE_WIPE_COMMAND -> {
                         sessionManager.executeWipeProtocol()

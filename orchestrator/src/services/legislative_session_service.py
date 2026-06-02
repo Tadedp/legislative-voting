@@ -6,8 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.websocket import ConnectionManager
 from src.models.legislative_session import LegislativeSession, LegSessionStatus
-from src.models.motion import Motion
-from src.repositories import legislative_session_repository, motion_repository
+from src.models.voting_round import VotingRound
+from src.repositories import (
+    agenda_item_repository,
+    legislative_session_repository, 
+    voting_round_repository,
+) 
 from src.services.quorum_service import compute_quorum_minimum, get_session_quorum
 
 async def list_legislative_sessions(db: AsyncSession) -> list[LegislativeSession]:
@@ -136,14 +140,16 @@ async def update_legislative_session_status(
 
 async def get_current_legislative_session(
     db: AsyncSession,
-) -> tuple[LegislativeSession, Motion | None]:
+) -> tuple[LegislativeSession, VotingRound | None, Any | None]:
     session = await legislative_session_repository.get_current_active(db)
 
     if session is None:
         raise ValueError("No active legislative session.")
 
-    active_motion = await motion_repository.get_open_motion_in_session(
+    active_round = await voting_round_repository.get_open_round_in_session(
         db, session.id,
     )
+    
+    active_item = await agenda_item_repository.get_active_on_floor(db)
 
-    return session, active_motion
+    return session, active_round, active_item

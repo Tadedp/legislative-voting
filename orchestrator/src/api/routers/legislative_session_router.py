@@ -15,13 +15,15 @@ from src.models.system_user import SystemUserRole
 from src.schemas.legislative_session_schemas import (
     CurrentLegislativeSessionResponse,
     EphemeralKeyRequest,
-    MotionResponse,
     LegislativeSessionCreate,
     LegislativeSessionResponse,
     LegislativeSessionStatusUpdate,
     LegislativeSessionUpdate,
 )
+from src.schemas.voting_round_schemas import VotingRoundWithItemResponse
+from src.schemas.agenda_item_schemas import AgendaItemResponse
 from src.services import legislative_session_service
+from src.repositories import agenda_item_repository
 
 legislative_session_router = APIRouter(
     prefix="/legislative-sessions",
@@ -72,19 +74,31 @@ async def get_current_legislative_session(
         user = await get_current_user(request=request, db_session=db_session, cookie_token=session_cookie) # type: ignore
 
     try:
-        session, active_motion = (
+        session, active_round, active_item = (
             await legislative_session_service.get_current_legislative_session(db_session)
         )
     except ValueError as exc:
         raise NotFoundException(str(exc))
 
+    # Build the nested DTO if a voting round is currently open.
+    active_voting_round_dto = None
+    if active_round is not None:
+        agenda_item = await agenda_item_repository.get_by_id(
+            db_session, active_round.agenda_item_id,
+        )
+        active_voting_round_dto = VotingRoundWithItemResponse.model_validate(
+            {
+                **VotingRoundWithItemResponse.model_validate(
+                    active_round,
+                ).model_dump(exclude={"agenda_item"}),
+                "agenda_item": AgendaItemResponse.model_validate(agenda_item),
+            }
+        )
+
     return CurrentLegislativeSessionResponse(
         session=LegislativeSessionResponse.model_validate(session),
-        active_motion=(
-            MotionResponse.model_validate(active_motion)
-            if active_motion
-            else None
-        ),
+        active_voting_round=active_voting_round_dto,
+        active_agenda_item=AgendaItemResponse.model_validate(active_item) if active_item else None,
     )
 
 @legislative_session_router.get(

@@ -24,26 +24,26 @@ async def create_non_nominal_vote(
     await db.flush()
     return vote
 
-async def get_non_nominal_votes_by_motion(
+async def get_non_nominal_votes_by_round(
     db: AsyncSession,
-    motion_id: uuid.UUID,
+    voting_round_id: uuid.UUID,
 ) -> list[NonNominalVote]:
     stmt = (
         select(NonNominalVote)
         .where(
-            NonNominalVote.motion_id == motion_id,
+            NonNominalVote.voting_round_id == voting_round_id,
         )
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
-async def count_nominal_votes_by_motion(
+async def count_nominal_votes_by_round(
     db: AsyncSession,
-    motion_id: uuid.UUID,
+    voting_round_id: uuid.UUID,
 ) -> dict[NominalVoteValue, int]:
     stmt = (
         select(NominalVote.vote_value, func.count())
-        .where(NominalVote.motion_id == motion_id)
+        .where(NominalVote.voting_round_id == voting_round_id)
         .group_by(NominalVote.vote_value)
     )
     result = await db.execute(stmt)

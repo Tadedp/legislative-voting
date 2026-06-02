@@ -4,20 +4,20 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import verify_secp256r1_signature
-from src.models.motion import Motion, MotionStatus
 from src.models.nominal_vote import NominalVote, NominalVoteValue
 from src.models.non_nominal_vote import NonNominalVote
+from src.models.voting_round import RoundStatus, VotingRound
 from src.repositories import (
     legislator_repository,
     legislative_session_repository,
-    motion_repository,
     vote_repository,
+    voting_round_repository,
 )
 
 async def cast_nominal_vote(
     db_session: AsyncSession,
     *,
-    motion_id: uuid.UUID,
+    voting_round_id: uuid.UUID,
     legislator_id: uuid.UUID,
     vote_value: NominalVoteValue,
     timestamp: int,
@@ -34,7 +34,7 @@ async def cast_nominal_vote(
     canonical_payload = json.dumps(
         {
             "legislator_id": str(legislator_id),
-            "motion_id": str(motion_id),
+            "motion_id": str(voting_round_id),
             "timestamp": timestamp,
             "vote_value": vote_value.value,
         },
@@ -50,7 +50,7 @@ async def cast_nominal_vote(
         raise ValueError("Cryptographic signature verification failed.")
 
     vote = NominalVote(
-        motion_id=motion_id,
+        voting_round_id=voting_round_id,
         legislator_id=legislator_id,
         vote_value=vote_value,
         cryptographic_signature=cryptographic_signature,
@@ -61,7 +61,7 @@ async def cast_nominal_vote(
 async def cast_non_nominal_vote(
     db_session: AsyncSession,
     *,
-    motion_id: uuid.UUID,
+    voting_round_id: uuid.UUID,
     legislator_id: uuid.UUID,
     encrypted_payload: str,
     timestamp: int,
@@ -79,7 +79,7 @@ async def cast_non_nominal_vote(
         {
             "encrypted_payload": encrypted_payload,
             "legislator_id": str(legislator_id),
-            "motion_id": str(motion_id),
+            "motion_id": str(voting_round_id),
             "timestamp": timestamp,
         },
         separators=(",", ":"),
@@ -94,7 +94,7 @@ async def cast_non_nominal_vote(
         raise ValueError("Cryptographic signature verification failed.")
 
     vote = NonNominalVote(
-        motion_id=motion_id,
+        voting_round_id=voting_round_id,
         legislator_id=legislator_id,
         encrypted_payload=encrypted_payload,
         cryptographic_signature=cryptographic_signature,
@@ -105,31 +105,34 @@ async def cast_non_nominal_vote(
 async def cast_tie_breaker_vote(
     db_session: AsyncSession,
     *,
-    motion_id: uuid.UUID,
+    voting_round_id: uuid.UUID,
     legislator_id: uuid.UUID,
     vote_value: NominalVoteValue,
     timestamp: int,
     cryptographic_signature: str,
-) -> Motion:
+) -> VotingRound:
     if vote_value == NominalVoteValue.ABSTENTION:
         raise ValueError(
             "Tie-breaker vote cannot be an abstention. "
             "Only AFFIRMATIVE or NEGATIVE are permitted.",
         )
 
-    # Retrieve and validate the motion.
-    motion = await motion_repository.get_by_id(db_session, motion_id)
-    if motion is None or motion.deleted_at is not None:
-        raise ValueError("Motion not found.")
+    # Retrieve and validate the voting round.
+    voting_round = await voting_round_repository.get_by_id(
+        db_session, voting_round_id,
+    )
+    if voting_round is None or voting_round.deleted_at is not None:
+        raise ValueError("Voting round not found.")
 
-    if motion.status != MotionStatus.TIED:
+    if voting_round.status != RoundStatus.TIED:
         raise ValueError(
-            "Tie-breaker vote is only allowed when motion status is 'TIED'.",
+            "Tie-breaker vote is only allowed when voting round "
+            "status is 'TIED'.",
         )
 
     # Retrieve the legislative session to verify presidential identity.
     leg_session = await legislative_session_repository.get_by_id(
-        db_session, motion.legislative_session_id,
+        db_session, voting_round.legislative_session_id,
     )
     if leg_session is None:
         raise ValueError("Legislative session not found.")
@@ -155,7 +158,7 @@ async def cast_tie_breaker_vote(
     canonical_payload = json.dumps(
         {
             "legislator_id": str(legislator_id),
-            "motion_id": str(motion_id),
+            "motion_id": str(voting_round_id),
             "timestamp": timestamp,
             "vote_value": vote_value.value,
         },
@@ -170,21 +173,23 @@ async def cast_tie_breaker_vote(
     ):
         raise ValueError("Cryptographic signature verification failed.")
 
-    # Record the deciding vote on the motion itself.
-    motion.tie_breaker_vote_value = vote_value.value
+    # Record the deciding vote on the round itself.
+    voting_round.tie_breaker_vote_value = vote_value.value
 
     # Determine the final result based on the tie-breaker.
     if vote_value == NominalVoteValue.AFFIRMATIVE:
-        motion.result = "PASSED"
+        voting_round.result = "PASSED"
     else:
-        motion.result = "FAILED"
+        voting_round.result = "FAILED"
 
-    motion.status = MotionStatus.RESOLVED
+    voting_round.status = RoundStatus.RESOLVED
     await db_session.flush()
-    return motion
+    return voting_round
 
 async def get_non_nominal_votes(
     db_session: AsyncSession,
-    motion_id: uuid.UUID,
+    voting_round_id: uuid.UUID,
 ) -> list[NonNominalVote]:
-    return await vote_repository.get_non_nominal_votes_by_motion(db_session, motion_id)
+    return await vote_repository.get_non_nominal_votes_by_round(
+        db_session, voting_round_id,
+    )

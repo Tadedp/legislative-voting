@@ -31,6 +31,32 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import edu.um.voterterminal.presentation.VotingState
 
+// -- Stage Badge Color Palette --
+private val BadgeGeneralColor = Color(0xFF1565C0)
+private val BadgeSpecificColor = Color(0xFF6A1B9A)
+private val BadgeMotionColor = Color(0xFF00838F)
+
+/**
+ * Resolves the stage string to its Spanish display label for the badge.
+ *
+ * Per spec §4.3:
+ * - "SINGLE" → "MOCIÓN"
+ * - "GENERAL" → "VOTACIÓN EN GENERAL"
+ * - "SPECIFIC" → "VOTACIÓN EN PARTICULAR"
+ */
+private fun stageBadgeLabel(stage: String): String = when (stage) {
+    "GENERAL" -> "VOTACIÓN EN GENERAL"
+    "SPECIFIC" -> "VOTACIÓN EN PARTICULAR"
+    else -> "MOCIÓN"
+}
+
+/** Returns the badge background color based on the stage. */
+private fun stageBadgeColor(stage: String): Color = when (stage) {
+    "GENERAL" -> BadgeGeneralColor
+    "SPECIFIC" -> BadgeSpecificColor
+    else -> BadgeMotionColor
+}
+
 @Composable
 fun VotingScreen(
     state: VotingState.VotingOpen,
@@ -52,7 +78,46 @@ fun VotingScreen(
                 .padding(24.dp)
                 .alpha(alphaValue)
         ) {
-            // Context Panel
+            // ── Stage Badge ─────────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = stageBadgeColor(state.stage)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stageBadgeLabel(state.stage),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+
+                    // Display the specific_reference immediately below the badge
+                    // when the stage is SPECIFIC (e.g., "Artículo 4").
+                    if (state.stage == "SPECIFIC" && !state.specificReference.isNullOrBlank()) {
+                        Text(
+                            text = state.specificReference,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White.copy(alpha = 0.95f),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Context Panel ───────────────────────────────────────
             Card(
                 modifier = Modifier
                     .fillMaxWidth()

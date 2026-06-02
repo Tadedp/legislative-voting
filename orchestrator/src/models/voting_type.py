@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-    from src.models.motion import Motion
+    from src.models.voting_round import VotingRound
 
 @unique
 class CalculationBase(StrEnum):
@@ -56,8 +56,8 @@ class VotingType(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
         nullable=True,
     )
 
-    motions: Mapped[list[Motion]] = relationship(
-        "Motion",
+    voting_rounds: Mapped[list["VotingRound"]] = relationship(
+        "VotingRound",
         back_populates="voting_type",
         lazy="raise_on_sql",
     )

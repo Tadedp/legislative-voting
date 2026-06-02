@@ -84,12 +84,13 @@ async def soft_delete_voting_type(
     if voting_type is None or voting_type.deleted_at is not None:
         raise ValueError("Voting type not found.")
 
-    has_motions = await voting_type_repository.has_active_motions(
+    has_rounds = await voting_type_repository.has_active_voting_rounds(
         db, voting_type_id,
     )
-    if has_motions:
+    if has_rounds:
         raise ValueError(
-            "Cannot delete voting type: it is currently linked to active motions.",
+            "Cannot delete voting type: it is currently linked to "
+            "active voting rounds.",
         )
 
     voting_type.deleted_at = datetime.now(timezone.utc)

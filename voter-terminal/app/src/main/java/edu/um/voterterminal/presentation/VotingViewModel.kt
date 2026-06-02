@@ -51,11 +51,12 @@ class VotingViewModel @Inject constructor(
     /**
      * Hydrates the terminal state from the Orchestrator REST API.
      *
-     * Handles three motion scenarios:
-     * - `VOTING_OPEN`: Rebuilds [VotingState.VotingOpen] with presidential fields.
+     * Handles three voting round scenarios:
+     * - `VOTING_OPEN`: Rebuilds [VotingState.VotingOpen] with the nested
+     *   [AgendaItemInfo] context, stage badge data, and presidential fields.
      * - `TIED`: Performs presidential identity comparison and transitions to
      *   [VotingState.TieBreakerActive] or [VotingState.MotionTiedIdle].
-     * - No active motion / other status: Transitions to [VotingState.Idle].
+     * - No active round / other status: Transitions to [VotingState.Idle].
      */
     private fun initializeSession() {
         if (securePrefsManager.deviceToken == null) {
@@ -66,37 +67,46 @@ class VotingViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val sessionResponse = orchestratorClient.getCurrentSession()
-                val activeMotion = sessionResponse.activeMotion
+                val activeRound = sessionResponse.activeVotingRound
 
                 val initialState = when {
-                    activeMotion != null && activeMotion.status == "VOTING_OPEN" -> {
+                    activeRound != null && activeRound.status == "VOTING_OPEN" -> {
                         VotingState.VotingOpen(
-                            motionId = activeMotion.id,
-                            title = activeMotion.title,
-                            summary = activeMotion.summary ?: "",
+                            votingRoundId = activeRound.id,
+                            title = activeRound.agendaItem.title,
+                            summary = activeRound.agendaItem.summary ?: "",
+                            stage = activeRound.stage,
+                            specificReference = activeRound.specificReference,
                             allowsAbstentions = true, // Default; full data comes via WS
-                            isNominal = activeMotion.isNominal,
+                            isNominal = activeRound.isNominal,
                             ephemeralPublicKey = sessionResponse.session.ephemeralPublicKey,
-                            presidingOfficerId = activeMotion.presidingOfficerId
-                                ?: sessionResponse.session.presidingOfficerId,
-                            presidentVotesOrdinarily = activeMotion.presidentVotesOrdinarily
+                            presidingOfficerId = sessionResponse.session.presidingOfficerId,
+                            presidentVotesOrdinarily = activeRound.presidentVotesOrdinarily
                         )
                     }
-                    activeMotion != null && activeMotion.status == "TIED" -> {
+                    activeRound != null && activeRound.status == "TIED" -> {
                         // Presidential identity comparison for tie-breaker routing
-                        val presidingOfficerId = activeMotion.presidingOfficerId
-                            ?: sessionResponse.session.presidingOfficerId
+                        val presidingOfficerId = sessionResponse.session.presidingOfficerId
                         val localLegislatorId = securePrefsManager.legislatorId
 
                         if (localLegislatorId != null && localLegislatorId == presidingOfficerId) {
                             VotingState.TieBreakerActive(
-                                motionId = activeMotion.id,
-                                title = activeMotion.title,
-                                summary = activeMotion.summary ?: ""
+                                votingRoundId = activeRound.id,
+                                title = activeRound.agendaItem.title,
+                                summary = activeRound.agendaItem.summary ?: "",
+                                stage = activeRound.stage,
+                                specificReference = activeRound.specificReference
                             )
                         } else {
                             VotingState.MotionTiedIdle
                         }
+                    }
+                    sessionResponse.activeAgendaItem != null && (sessionResponse.activeAgendaItem.status == "DEBATE" || sessionResponse.activeAgendaItem.status == "APPROVED_IN_GENERAL") -> {
+                        VotingState.DebateIdle(
+                            agendaItemId = sessionResponse.activeAgendaItem.id,
+                            title = sessionResponse.activeAgendaItem.title,
+                            summary = sessionResponse.activeAgendaItem.summary ?: ""
+                        )
                     }
                     else -> VotingState.Idle
                 }
@@ -165,7 +175,7 @@ class VotingViewModel @Inject constructor(
 
                 if (currentState.isNominal) {
                     val unsignedRequest = NominalVoteRequest(
-                        motionId = currentState.motionId,
+                        motionId = currentState.votingRoundId,
                         legislatorId = legislatorId,
                         voteValue = voteValue,
                         timestamp = timestamp,
@@ -191,7 +201,7 @@ class VotingViewModel @Inject constructor(
                     val encryptedPayload = encryptionUtils.encryptNonNominalPayload(innerEnvelope, ephemeralPublicKey)
                     
                     val unsignedRequest = NonNominalVoteRequest(
-                        motionId = currentState.motionId,
+                        motionId = currentState.votingRoundId,
                         legislatorId = legislatorId,
                         encryptedPayload = encryptedPayload,
                         timestamp = timestamp,
@@ -214,7 +224,7 @@ class VotingViewModel @Inject constructor(
     }
 
     /**
-     * Submits a presidential tie-breaker vote for the currently tied motion.
+     * Submits a presidential tie-breaker vote for the currently tied voting round.
      *
      * Follows the identical cryptographic flow as a nominal [submitVote]:
      * canonicalize → biometric sign → POST. The only difference is the
@@ -235,7 +245,7 @@ class VotingViewModel @Inject constructor(
                     ?: throw IllegalStateException("Legislator ID missing")
 
                 val unsignedRequest = NominalVoteRequest(
-                    motionId = currentState.motionId,
+                    motionId = currentState.votingRoundId,
                     legislatorId = legislatorId,
                     voteValue = voteValue,
                     timestamp = timestamp,

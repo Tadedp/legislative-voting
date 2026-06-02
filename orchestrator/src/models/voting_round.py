@@ -8,12 +8,12 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
-    Integer,
-    func,
     Index,
-    text,
+    Integer,
     Text,
     false,
+    func,
+    text,
     true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -21,13 +21,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from src.models.agenda_item import AgendaItem
     from src.models.legislative_session import LegislativeSession
     from src.models.nominal_vote import NominalVote
     from src.models.non_nominal_vote import NonNominalVote
     from src.models.voting_type import VotingType
-    
+
 @unique
-class MotionStatus(StrEnum):
+class RoundStage(StrEnum):
+    SINGLE = "SINGLE"
+    GENERAL = "GENERAL"
+    SPECIFIC = "SPECIFIC"
+
+@unique
+class RoundStatus(StrEnum):
     DRAFT = "DRAFT"
     VOTING_OPEN = "VOTING_OPEN"
     VOTING_CLOSED = "VOTING_CLOSED"
@@ -35,32 +42,36 @@ class MotionStatus(StrEnum):
     TIED = "TIED"
     ABORTED = "ABORTED"
 
-class Motion(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
-    __tablename__ = "motions"
+class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
+    __tablename__ = "voting_rounds"
 
+    agenda_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agenda_items.id"),
+        nullable=False,
+    )
     legislative_session_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("legislative_sessions.id"),
         nullable=False,
     )
+    stage: Mapped[RoundStage] = mapped_column(
+        Enum(RoundStage, name="round_stage"),
+        nullable=False,
+    )
+    specific_reference: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
     voting_type_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("voting_types.id"),
         nullable=False,
-    )
-    title: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-    )
-    summary: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
     )
     is_nominal: Mapped[bool] = mapped_column(
         Boolean,
         server_default=true(),
         nullable=False,
     )
-    status: Mapped[MotionStatus] = mapped_column(
-        Enum(MotionStatus, name="motion_status"),
+    status: Mapped[RoundStatus] = mapped_column(
+        Enum(RoundStatus, name="round_status"),
         server_default=text("'DRAFT'"),
         nullable=False,
     )
@@ -95,27 +106,32 @@ class Motion(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         nullable=False,
     )
 
-    legislative_session: Mapped[LegislativeSession] = relationship(
+    agenda_item: Mapped["AgendaItem"] = relationship(
+        "AgendaItem",
+        back_populates="voting_rounds",
+        lazy="raise_on_sql",
+    )
+    legislative_session: Mapped["LegislativeSession"] = relationship(
         "LegislativeSession",
-        back_populates="motions",
+        back_populates="voting_rounds",
         lazy="raise_on_sql",
     )
-    voting_type: Mapped[VotingType] = relationship(
+    voting_type: Mapped["VotingType"] = relationship(
         "VotingType",
-        back_populates="motions",
+        back_populates="voting_rounds",
         lazy="raise_on_sql",
     )
-    nominal_votes: Mapped[list[NominalVote]] = relationship(
+    nominal_votes: Mapped[list["NominalVote"]] = relationship(
         "NominalVote",
-        back_populates="motion",
+        back_populates="voting_round",
         lazy="raise_on_sql",
     )
-    non_nominal_votes: Mapped[list[NonNominalVote]] = relationship(
+    non_nominal_votes: Mapped[list["NonNominalVote"]] = relationship(
         "NonNominalVote",
-        back_populates="motion",
+        back_populates="voting_round",
         lazy="raise_on_sql",
     )
-    
+
     __table_args__ = (
-        Index("idx_motions_session_id", "legislative_session_id"),
+        Index("idx_voting_rounds_session_id", "legislative_session_id"),
     )

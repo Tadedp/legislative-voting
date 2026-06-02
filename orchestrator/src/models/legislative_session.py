@@ -10,7 +10,7 @@ from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from src.models.legislator import Legislator
-    from src.models.motion import Motion
+    from src.models.voting_round import VotingRound
 
 @unique
 class LegSessionStatus(StrEnum):
@@ -71,8 +71,8 @@ class LegislativeSession(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         nullable=True,
     )
 
-    motions: Mapped[list[Motion]] = relationship(
-        "Motion",
+    voting_rounds: Mapped[list["VotingRound"]] = relationship(
+        "VotingRound",
         back_populates="legislative_session",
         lazy="raise_on_sql",
     )

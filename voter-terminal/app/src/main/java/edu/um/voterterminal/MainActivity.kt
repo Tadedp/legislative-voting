@@ -21,6 +21,7 @@ import edu.um.voterterminal.presentation.VotingViewModel
 import edu.um.voterterminal.ui.screens.DeviceRevokedScreen
 import edu.um.voterterminal.ui.screens.IdleScreen
 import edu.um.voterterminal.ui.screens.MotionTiedIdleScreen
+import edu.um.voterterminal.ui.screens.DebateIdleScreen
 import edu.um.voterterminal.ui.screens.ProvisioningScreen
 import edu.um.voterterminal.ui.screens.TieBreakerScreen
 import edu.um.voterterminal.ui.screens.VotingScreen
@@ -85,6 +86,9 @@ fun VoterTerminalRouter(
             }
             is VotingState.Idle -> {
                 IdleScreen()
+            }
+            is VotingState.DebateIdle -> {
+                DebateIdleScreen(state = state)
             }
             is VotingState.VotingOpen -> {
                 // Presidential identity comparison for UI forking

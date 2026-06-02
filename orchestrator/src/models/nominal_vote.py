@@ -11,7 +11,7 @@ from src.models.base import Base
 
 if TYPE_CHECKING:
     from src.models.legislator import Legislator
-    from src.models.motion import Motion
+    from src.models.voting_round import VotingRound
 
 @unique
 class NominalVoteValue(StrEnum):
@@ -28,8 +28,8 @@ class NominalVote(Base):
         default=uuid.uuid7,
         server_default=text("uuidv7()"),
     )
-    motion_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("motions.id"),
+    voting_round_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("voting_rounds.id"),
         nullable=False,
     )
     legislator_id: Mapped[uuid.UUID] = mapped_column(
@@ -50,8 +50,8 @@ class NominalVote(Base):
         nullable=False,
     )
 
-    motion: Mapped[Motion] = relationship(
-        "Motion",
+    voting_round: Mapped[VotingRound] = relationship(
+        "VotingRound",
         back_populates="nominal_votes",
         lazy="raise_on_sql",
     )
@@ -63,8 +63,8 @@ class NominalVote(Base):
     
     __table_args__ = (
         UniqueConstraint(
-            "motion_id",
+            "voting_round_id",
             "legislator_id",
-            name="uq_nominal_votes_motion_legislator",
+            name="uq_nominal_votes_voting_round_legislator",
         ),
     )

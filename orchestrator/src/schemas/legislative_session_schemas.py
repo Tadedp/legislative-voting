@@ -5,7 +5,8 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.models.legislative_session import LegSessionStatus, PresidentType
-from src.models.motion import MotionStatus
+from src.schemas.voting_round_schemas import VotingRoundWithItemResponse
+from src.schemas.agenda_item_schemas import AgendaItemResponse
 
 class LegislativeSessionCreate(BaseModel):
     title: Annotated[
@@ -46,15 +47,7 @@ class LegislativeSessionResponse(BaseModel):
     created_at: datetime
     deleted_at: datetime | None = None
 
-class MotionResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    title: str
-    summary: str | None = None
-    is_nominal: bool
-    status: MotionStatus
-
 class CurrentLegislativeSessionResponse(BaseModel):
     session: LegislativeSessionResponse
-    active_motion: MotionResponse | None = None
+    active_voting_round: VotingRoundWithItemResponse | None = None
+    active_agenda_item: AgendaItemResponse | None = None

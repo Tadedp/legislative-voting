@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.motion import Motion
+from src.models.voting_round import VotingRound
 from src.models.voting_type import VotingType
 
 async def get_all_active(db: AsyncSession) -> list[VotingType]:
@@ -42,15 +42,15 @@ async def get_by_name(
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
-async def has_active_motions(
+async def has_active_voting_rounds(
     db: AsyncSession,
     voting_type_id: uuid.UUID,
 ) -> bool:
     stmt = (
-        select(Motion.id)
+        select(VotingRound.id)
         .where(
-            Motion.voting_type_id == voting_type_id,
-            Motion.deleted_at.is_(None),
+            VotingRound.voting_type_id == voting_type_id,
+            VotingRound.deleted_at.is_(None),
         )
         .limit(1)
     )

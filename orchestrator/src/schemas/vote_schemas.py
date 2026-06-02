@@ -1,19 +1,12 @@
 import uuid
-from typing import Annotated
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.models.nominal_vote import NominalVoteValue
 
 class NominalVote(BaseModel):
-    """Schema for a cryptographically signed nominal vote payload.
-
-    Sent from the voter terminal (Android device). The signature covers
-    the canonical JSON representation of all fields except the signature
-    itself.
-    """
-
     motion_id: uuid.UUID
     legislator_id: uuid.UUID
     vote_value: NominalVoteValue
@@ -27,13 +20,6 @@ class NominalVote(BaseModel):
     ]
 
 class NonNominalVote(BaseModel):
-    """Schema for a cryptographically signed non-nominal vote payload.
-
-    The encrypted_payload is opaque to the orchestrator (blind conduit).
-    The signature proves the legislator cast the vote without revealing
-    its content.
-    """
-
     motion_id: uuid.UUID
     legislator_id: uuid.UUID
     encrypted_payload: Annotated[
@@ -50,13 +36,6 @@ class NonNominalVote(BaseModel):
     ]
 
 class TieBreakerVote(BaseModel):
-    """Schema for a cryptographically signed presidential tie-breaking vote.
-
-    The payload structure mirrors NominalVote but is validated against
-    the session's presiding_officer_id instead of the general legislator
-    pool. Only AFFIRMATIVE or NEGATIVE values are permitted.
-    """
-
     motion_id: uuid.UUID
     legislator_id: uuid.UUID
     vote_value: NominalVoteValue
@@ -73,17 +52,18 @@ class NominalVoteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     event_id: uuid.UUID
-    motion_id: uuid.UUID
+    voting_round_id: uuid.UUID
     legislator_id: uuid.UUID
     vote_value: NominalVoteValue
     cryptographic_signature: str
     timestamp: datetime
 
+
 class NonNominalVoteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     event_id: uuid.UUID
-    motion_id: uuid.UUID
+    voting_round_id: uuid.UUID
     legislator_id: uuid.UUID
     encrypted_payload: str
     cryptographic_signature: str

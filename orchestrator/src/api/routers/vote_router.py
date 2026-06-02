@@ -19,7 +19,7 @@ from src.schemas.vote_schemas import (
     NonNominalVoteResponse,
     TieBreakerVote,
 )
-from src.schemas.motion_schemas import MotionResponse
+from src.schemas.voting_round_schemas import VotingRoundResponse
 from src.services import vote_service
 
 vote_router = APIRouter(
@@ -49,7 +49,7 @@ async def cast_nominal_vote(
     try:
         vote = await vote_service.cast_nominal_vote(
             db_session,
-            motion_id=body.motion_id,
+            voting_round_id=body.motion_id,
             legislator_id=body.legislator_id,
             vote_value=body.vote_value,
             timestamp=body.timestamp,
@@ -65,7 +65,7 @@ async def cast_nominal_vote(
         "NOMINAL_VOTE_CAST",
         {
             "event_id": str(vote.event_id),
-            "motion_id": str(vote.motion_id),
+            "voting_round_id": str(vote.voting_round_id),
             "legislator_id": str(vote.legislator_id),
             "vote_value": vote.vote_value.value,
         },
@@ -95,7 +95,7 @@ async def cast_non_nominal_vote(
     try:
         vote = await vote_service.cast_non_nominal_vote(
             db_session,
-            motion_id=body.motion_id,
+            voting_round_id=body.motion_id,
             legislator_id=body.legislator_id,
             encrypted_payload=body.encrypted_payload,
             timestamp=body.timestamp,
@@ -111,7 +111,7 @@ async def cast_non_nominal_vote(
         "NON_NOMINAL_VOTE_CAST",
         {
             "event_id": str(vote.event_id),
-            "motion_id": str(vote.motion_id),
+            "voting_round_id": str(vote.voting_round_id),
             "legislator_id": str(vote.legislator_id),
         },
     )
@@ -119,9 +119,9 @@ async def cast_non_nominal_vote(
     return response
 
 @vote_router.get(
-    "/motions/{motion_id}/votes/non-nominal",
+    "/voting-rounds/{voting_round_id}/votes/non-nominal",
     response_model=list[NonNominalVoteResponse],
-    summary="Get non-nominal votes for a motion",
+    summary="Get non-nominal votes for a voting round",
     description=(
         "Retrieves all non-nominal vote ciphertexts for Presidency "
         "decryption."
@@ -130,37 +130,37 @@ async def cast_non_nominal_vote(
 )
 async def get_non_nominal_votes(
     db_session: DbSessionDep,
-    motion_id: uuid.UUID,
+    voting_round_id: uuid.UUID,
 ) -> list[NonNominalVoteResponse]:
-    votes = await vote_service.get_non_nominal_votes(db_session, motion_id)
+    votes = await vote_service.get_non_nominal_votes(db_session, voting_round_id)
     return [NonNominalVoteResponse.model_validate(v) for v in votes]
 
 @vote_router.post(
     "/votes/tie-breaker",
-    response_model=MotionResponse,
+    response_model=VotingRoundResponse,
     status_code=status.HTTP_200_OK,
     summary="Cast a presidential tie-breaking vote",
     description=(
         "Zero-trust: cryptographically signed by the presiding officer. "
-        "Only permitted when a motion is in TIED status. Only AFFIRMATIVE "
-        "or NEGATIVE values are accepted. The deciding vote is stored on "
-        "the motion itself (not in nominal_votes)."
+        "Only permitted when a voting round is in TIED status. Only "
+        "AFFIRMATIVE or NEGATIVE values are accepted. The deciding vote "
+        "is stored on the voting round itself (not in nominal_votes)."
     ),
 )
 async def cast_tie_breaker_vote(
     db_session: DbSessionDep,
     background_tasks: BackgroundTasks,
     body: TieBreakerVote,
-) -> MotionResponse:
+) -> VotingRoundResponse:
     # Anti-replay window check.
     now_ms = time_ns() // 1_000_000
     if abs(now_ms - body.timestamp) > settings.security.ANTI_REPLAY_WINDOW_MS:
         raise BadRequestException("Timestamp outside allowed anti-replay window.")
 
     try:
-        motion = await vote_service.cast_tie_breaker_vote(
+        voting_round = await vote_service.cast_tie_breaker_vote(
             db_session,
-            motion_id=body.motion_id,
+            voting_round_id=body.motion_id,
             legislator_id=body.legislator_id,
             vote_value=body.vote_value,
             timestamp=body.timestamp,
@@ -169,13 +169,13 @@ async def cast_tie_breaker_vote(
     except ValueError as exc:
         raise ConflictException(str(exc))
 
-    response = MotionResponse.model_validate(motion)
+    response = VotingRoundResponse.model_validate(voting_round)
 
     background_tasks.add_task(
         manager.broadcast,
         "TIE_BREAKER_VOTE_CAST",
         {
-            "motion_id": str(body.motion_id),
+            "voting_round_id": str(body.motion_id),
             "result": response.result,
             "new_status": response.status.value,
             "legislative_session_id": str(response.legislative_session_id),
