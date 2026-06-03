@@ -44,19 +44,46 @@ class VotingViewModel @Inject constructor(
     val legislatorId: String?
         get() = securePrefsManager.legislatorId
 
+    private val _remainingTimeSeconds = MutableStateFlow<Int?>(null)
+    val remainingTimeSeconds: StateFlow<Int?> = _remainingTimeSeconds
+
+    private var timerJob: kotlinx.coroutines.Job? = null
+
     init {
         initializeSession()
+        
+        // Launch a collector to monitor VotingRoundActive states for the countdown timer
+        viewModelScope.launch {
+            sessionManager.state.collect { state ->
+                if (state is VotingState.VotingRoundActive && state.status == "VOTING_OPEN" && state.timeLimitSeconds != null) {
+                    startTimer(state.timeLimitSeconds)
+                } else if (state is VotingState.VoteLocked && state.originalState.status == "VOTING_OPEN" && state.originalState.timeLimitSeconds != null) {
+                    // Let timer keep running if we just locked our own vote
+                } else {
+                    stopTimer()
+                }
+            }
+        }
+    }
+
+    private fun startTimer(limit: Int) {
+        if (timerJob?.isActive == true) return
+        timerJob = viewModelScope.launch {
+            for (i in limit downTo 0) {
+                _remainingTimeSeconds.value = i
+                kotlinx.coroutines.delay(1000)
+            }
+        }
+    }
+
+    private fun stopTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        _remainingTimeSeconds.value = null
     }
 
     /**
      * Hydrates the terminal state from the Orchestrator REST API.
-     *
-     * Handles three voting round scenarios:
-     * - `VOTING_OPEN`: Rebuilds [VotingState.VotingOpen] with the nested
-     *   [AgendaItemInfo] context, stage badge data, and presidential fields.
-     * - `TIED`: Performs presidential identity comparison and transitions to
-     *   [VotingState.TieBreakerActive] or [VotingState.MotionTiedIdle].
-     * - No active round / other status: Transitions to [VotingState.Idle].
      */
     private fun initializeSession() {
         if (securePrefsManager.deviceToken == null) {
@@ -70,8 +97,8 @@ class VotingViewModel @Inject constructor(
                 val activeRound = sessionResponse.activeVotingRound
 
                 val initialState = when {
-                    activeRound != null && activeRound.status == "VOTING_OPEN" -> {
-                        VotingState.VotingOpen(
+                    activeRound != null && activeRound.status in listOf("DRAFT", "VOTING_OPEN", "VOTING_CLOSED") -> {
+                        VotingState.VotingRoundActive(
                             votingRoundId = activeRound.id,
                             title = activeRound.agendaItem.title,
                             summary = activeRound.agendaItem.summary ?: "",
@@ -81,7 +108,9 @@ class VotingViewModel @Inject constructor(
                             isNominal = activeRound.isNominal,
                             ephemeralPublicKey = sessionResponse.session.ephemeralPublicKey,
                             presidingOfficerId = sessionResponse.session.presidingOfficerId,
-                            presidentVotesOrdinarily = activeRound.presidentVotesOrdinarily
+                            presidentVotesOrdinarily = activeRound.presidentVotesOrdinarily,
+                            status = activeRound.status,
+                            timeLimitSeconds = activeRound.timeLimitSeconds
                         )
                     }
                     activeRound != null && activeRound.status == "TIED" -> {
@@ -165,7 +194,8 @@ class VotingViewModel @Inject constructor(
      */
     fun submitVote(activity: FragmentActivity, voteValue: String) {
         val currentState = uiState.value
-        if (currentState !is VotingState.VotingOpen) return
+        if (currentState !is VotingState.VotingRoundActive) return
+        if (currentState.status != "VOTING_OPEN") return
 
         viewModelScope.launch {
             try {

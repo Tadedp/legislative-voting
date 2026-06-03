@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from src.models.voting_round import VotingRound
 
 @unique
-class NominalVoteValue(StrEnum):
+class VoteValue(StrEnum):
     AFFIRMATIVE = "AFFIRMATIVE"
     NEGATIVE = "NEGATIVE"
     ABSTENTION = "ABSTENTION"
@@ -36,8 +36,8 @@ class NominalVote(Base):
         ForeignKey("legislators.id"),
         nullable=False,
     )
-    vote_value: Mapped[NominalVoteValue] = mapped_column(
-        Enum(NominalVoteValue, name="nominal_vote_value"),
+    vote_value: Mapped[VoteValue] = mapped_column(
+        Enum(VoteValue, name="vote_value"),
         nullable=False,
     )
     cryptographic_signature: Mapped[str] = mapped_column(

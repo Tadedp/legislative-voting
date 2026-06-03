@@ -9,7 +9,8 @@ from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from src.models.device import Device
     from src.models.nominal_vote import NominalVote
-    from src.models.non_nominal_vote import NonNominalVote
+    from src.models.non_nominal_voter import NonNominalVoter
+    from src.models.session_attendance import SessionAttendance
 
 class Legislator(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
     __tablename__ = "legislators"
@@ -50,8 +51,13 @@ class Legislator(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
         back_populates="legislator",
         lazy="raise_on_sql",
     )
-    non_nominal_votes: Mapped[list[NonNominalVote]] = relationship(
-        "NonNominalVote",
+    non_nominal_voters: Mapped[list["NonNominalVoter"]] = relationship(
+        "NonNominalVoter",
+        back_populates="legislator",
+        lazy="raise_on_sql",
+    )
+    session_attendances: Mapped[list["SessionAttendance"]] = relationship(
+        "SessionAttendance",
         back_populates="legislator",
         lazy="raise_on_sql",
     )

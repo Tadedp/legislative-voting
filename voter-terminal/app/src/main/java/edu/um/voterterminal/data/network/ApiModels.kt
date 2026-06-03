@@ -145,6 +145,8 @@ data class ActiveVotingRoundInfo(
     val status: String,
     @SerialName("president_votes_ordinarily")
     val presidentVotesOrdinarily: Boolean = true,
+    @SerialName("time_limit_seconds")
+    val timeLimitSeconds: Int? = null,
     @SerialName("agenda_item")
     val agendaItem: AgendaItemInfo
 )

@@ -9,12 +9,14 @@ from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from src.models.system_user_session import SystemUserSession
+    from src.models.session_attendance import SessionAttendance
 
 @unique
 class SystemUserRole(StrEnum):
     ADMIN = "ADMIN"
     PRESIDENCY = "PRESIDENCY"
     AUDITOR = "AUDITOR"
+    SECRETARY = "SECRETARY"
 
 class SystemUser(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
     __tablename__ = "system_users"
@@ -47,6 +49,11 @@ class SystemUser(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="raise_on_sql",
+    )
+    registered_attendances: Mapped[list["SessionAttendance"]] = relationship(
+        "SessionAttendance",
+        back_populates="registered_by_user",
         lazy="raise_on_sql",
     )
     

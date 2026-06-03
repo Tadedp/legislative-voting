@@ -1,9 +1,8 @@
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.non_nominal_vote import NonNominalVote
 from src.models.voting_round import RoundStatus, VotingRound
 
 async def get_by_session_id(
@@ -65,15 +64,3 @@ async def create(
     db.add(voting_round)
     await db.flush()
     return voting_round
-
-async def void_non_nominal_votes(
-    db: AsyncSession,
-    voting_round_id: uuid.UUID,
-) -> None:
-    stmt = (
-        update(NonNominalVote)
-        .where(NonNominalVote.voting_round_id == voting_round_id)
-        .values(is_voided=True)
-    )
-    await db.execute(stmt)
-    await db.flush()

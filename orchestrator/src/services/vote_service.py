@@ -4,8 +4,9 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import verify_secp256r1_signature
-from src.models.nominal_vote import NominalVote, NominalVoteValue
-from src.models.non_nominal_vote import NonNominalVote
+from src.models.nominal_vote import NominalVote, VoteValue
+from src.models.non_nominal_tally import NonNominalTally
+from src.models.non_nominal_voter import NonNominalVoter
 from src.models.voting_round import RoundStatus, VotingRound
 from src.repositories import (
     legislator_repository,
@@ -19,7 +20,7 @@ async def cast_nominal_vote(
     *,
     voting_round_id: uuid.UUID,
     legislator_id: uuid.UUID,
-    vote_value: NominalVoteValue,
+    vote_value: VoteValue,
     timestamp: int,
     cryptographic_signature: str,
 ) -> NominalVote:
@@ -34,9 +35,9 @@ async def cast_nominal_vote(
     canonical_payload = json.dumps(
         {
             "legislator_id": str(legislator_id),
-            "motion_id": str(voting_round_id),
             "timestamp": timestamp,
             "vote_value": vote_value.value,
+            "voting_round_id": str(voting_round_id),
         },
         separators=(",", ":"),
         sort_keys=True,
@@ -63,10 +64,10 @@ async def cast_non_nominal_vote(
     *,
     voting_round_id: uuid.UUID,
     legislator_id: uuid.UUID,
-    encrypted_payload: str,
+    vote_value: VoteValue,
     timestamp: int,
     cryptographic_signature: str,
-) -> NonNominalVote:
+) -> None:
     legislator = await legislator_repository.get_by_id(db_session, legislator_id)
 
     if legislator is None or legislator.deleted_at is not None:
@@ -77,10 +78,10 @@ async def cast_non_nominal_vote(
 
     canonical_payload = json.dumps(
         {
-            "encrypted_payload": encrypted_payload,
             "legislator_id": str(legislator_id),
-            "motion_id": str(voting_round_id),
             "timestamp": timestamp,
+            "vote_value": vote_value.value,
+            "voting_round_id": str(voting_round_id),
         },
         separators=(",", ":"),
         sort_keys=True,
@@ -93,25 +94,33 @@ async def cast_non_nominal_vote(
     ):
         raise ValueError("Cryptographic signature verification failed.")
 
-    vote = NonNominalVote(
+    voter = NonNominalVoter(
         voting_round_id=voting_round_id,
         legislator_id=legislator_id,
-        encrypted_payload=encrypted_payload,
         cryptographic_signature=cryptographic_signature,
     )
 
-    return await vote_repository.create_non_nominal_vote(db_session, vote=vote)
+    tally = NonNominalTally(
+        voting_round_id=voting_round_id,
+        vote_value=vote_value,
+    )
+
+    await vote_repository.create_non_nominal_voter_and_tally(
+        db_session,
+        voter=voter,
+        tally=tally,
+    )
 
 async def cast_tie_breaker_vote(
     db_session: AsyncSession,
     *,
     voting_round_id: uuid.UUID,
     legislator_id: uuid.UUID,
-    vote_value: NominalVoteValue,
+    vote_value: VoteValue,
     timestamp: int,
     cryptographic_signature: str,
 ) -> VotingRound:
-    if vote_value == NominalVoteValue.ABSTENTION:
+    if vote_value == VoteValue.ABSTENTION:
         raise ValueError(
             "Tie-breaker vote cannot be an abstention. "
             "Only AFFIRMATIVE or NEGATIVE are permitted.",
@@ -158,9 +167,9 @@ async def cast_tie_breaker_vote(
     canonical_payload = json.dumps(
         {
             "legislator_id": str(legislator_id),
-            "motion_id": str(voting_round_id),
             "timestamp": timestamp,
             "vote_value": vote_value.value,
+            "voting_round_id": str(voting_round_id),
         },
         separators=(",", ":"),
         sort_keys=True,
@@ -177,7 +186,7 @@ async def cast_tie_breaker_vote(
     voting_round.tie_breaker_vote_value = vote_value.value
 
     # Determine the final result based on the tie-breaker.
-    if vote_value == NominalVoteValue.AFFIRMATIVE:
+    if vote_value == VoteValue.AFFIRMATIVE:
         voting_round.result = "PASSED"
     else:
         voting_round.result = "FAILED"
@@ -186,10 +195,10 @@ async def cast_tie_breaker_vote(
     await db_session.flush()
     return voting_round
 
-async def get_non_nominal_votes(
+async def get_non_nominal_tallies(
     db_session: AsyncSession,
     voting_round_id: uuid.UUID,
-) -> list[NonNominalVote]:
-    return await vote_repository.get_non_nominal_votes_by_round(
+) -> dict[VoteValue, int]:
+    return await vote_repository.count_non_nominal_tallies_by_round(
         db_session, voting_round_id,
     )

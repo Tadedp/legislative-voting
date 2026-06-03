@@ -10,9 +10,8 @@ from src.models.system_user import SystemUserRole
 from src.models.voting_round import RoundStatus
 from src.schemas.voting_round_schemas import (
     VotingRoundCreate,
-    VotingRoundResolveRequest,
+    VotingRoundProclaimRequest,
     VotingRoundResponse,
-    VotingRoundStatusUpdate,
     VotingRoundUpdate,
 )
 from src.services import voting_round_service
@@ -68,6 +67,7 @@ async def create_voting_round(
             voting_type_id=body.voting_type_id,
             is_nominal=body.is_nominal,
             president_votes_ordinarily=body.president_votes_ordinarily,
+            time_limit_seconds=body.time_limit_seconds,
         )
     except ValueError as exc:
         if "Creation constraint" in str(exc):
@@ -141,137 +141,132 @@ async def delete_voting_round(
 
     return VotingRoundResponse.model_validate(voting_round)
 
-@voting_round_router.patch(
-    "/voting-rounds/{voting_round_id}/status",
+@voting_round_router.post(
+    "/voting-rounds/{voting_round_id}/open",
     response_model=VotingRoundResponse,
-    summary="Update voting round status",
-    description=(
-        "Transition: VOTING_OPEN (with quorum guard), VOTING_CLOSED. "
-        "Quorum is validated when transitioning to VOTING_OPEN."
-    ),
+    summary="Open voting round",
+    description="Transition to VOTING_OPEN. Quorum is validated.",
     dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
 )
-async def update_voting_round_status(
+async def open_voting_round(
     db_session: DbSessionDep,
     background_tasks: BackgroundTasks,
     voting_round_id: uuid.UUID,
-    body: VotingRoundStatusUpdate,
 ) -> VotingRoundResponse:
     try:
-        voting_round = await voting_round_service.update_voting_round_status(
-            db_session,
-            voting_round_id,
-            new_status=body.status,
-            ws_manager=manager,
+        voting_round = await voting_round_service.open_voting_round(
+            db_session, voting_round_id,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
 
     response = VotingRoundResponse.model_validate(voting_round)
 
-    if body.status == RoundStatus.VOTING_OPEN:
-        # Fetch ancillary data for the broadcast payload.
-        voting_type = await voting_round_service.get_voting_type_for_round(
-            db_session, voting_round_id,
-        )
-        session = await voting_round_service.get_session_for_round(
-            db_session, voting_round_id,
-        )
-        agenda_item = await voting_round_service.get_agenda_item_for_round(
-            db_session, voting_round_id,
-        )
+    voting_type = await voting_round_service.get_voting_type_for_round(
+        db_session, voting_round_id,
+    )
+    session = await voting_round_service.get_session_for_round(
+        db_session, voting_round_id,
+    )
+    agenda_item = await voting_round_service.get_agenda_item_for_round(
+        db_session, voting_round_id,
+    )
 
-        background_tasks.add_task(
-            manager.broadcast,
-            "VOTING_ROUND_OPENED",
-            {
-                "voting_round_id": str(voting_round_id),
-                "stage": voting_round.stage.value,
-                "specific_reference": voting_round.specific_reference,
-                "agenda_item": {
-                    "id": str(agenda_item.id) if agenda_item else None,
-                    "title": agenda_item.title if agenda_item else "",
-                    "summary": agenda_item.summary or "" if agenda_item else "",
-                    "category": agenda_item.category.value if agenda_item else None,
-                    "status": agenda_item.status.value if agenda_item else None,
-                },
-                "is_nominal": voting_round.is_nominal,
-                "allows_abstentions": (
-                    voting_type.allows_abstentions if voting_type else True
-                ),
-                "ephemeral_public_key": (
-                    session.ephemeral_public_key if session else None
-                ),
-                "presiding_officer_id": (
-                    str(session.presiding_officer_id)
-                    if session and session.presiding_officer_id
-                    else None
-                ),
-                "president_votes_ordinarily": (
-                    voting_round.president_votes_ordinarily
-                ),
+    background_tasks.add_task(
+        manager.broadcast,
+        "VOTING_ROUND_OPENED",
+        {
+            "voting_round_id": str(voting_round_id),
+            "stage": voting_round.stage.value,
+            "specific_reference": voting_round.specific_reference,
+            "agenda_item": {
+                "id": str(agenda_item.id) if agenda_item else None,
+                "title": agenda_item.title if agenda_item else "",
+                "summary": agenda_item.summary or "" if agenda_item else "",
+                "category": agenda_item.category.value if agenda_item else None,
+                "status": agenda_item.status.value if agenda_item else None,
             },
-        )
-    elif body.status == RoundStatus.VOTING_CLOSED:
-        background_tasks.add_task(
-            manager.broadcast,
-            "VOTING_ROUND_CLOSED",
-            {
-                "voting_round_id": str(voting_round_id),
-                "legislative_session_id": str(
-                    response.legislative_session_id,
-                ),
-            },
-        )
-    else:
-        background_tasks.add_task(
-            manager.broadcast,
-            "VOTING_ROUND_STATUS_CHANGED",
-            {
-                "voting_round_id": str(voting_round_id),
-                "new_status": body.status.value,
-                "legislative_session_id": str(
-                    response.legislative_session_id,
-                ),
-            },
-        )
+            "is_nominal": voting_round.is_nominal,
+            "allows_abstentions": (
+                voting_type.allows_abstentions if voting_type else True
+            ),
+            "ephemeral_public_key": (
+                session.ephemeral_public_key if session else None
+            ),
+            "presiding_officer_id": (
+                str(session.presiding_officer_id)
+                if session and session.presiding_officer_id
+                else None
+            ),
+            "president_votes_ordinarily": (
+                voting_round.president_votes_ordinarily
+            ),
+            "time_limit_seconds": voting_round.time_limit_seconds,
+        },
+    )
 
     return response
 
 @voting_round_router.post(
-    "/voting-rounds/{voting_round_id}/resolve",
+    "/voting-rounds/{voting_round_id}/close",
     response_model=VotingRoundResponse,
-    summary="Submit final tally and resolve a voting round",
-    description=(
-        "Runs the calculation engine on the final vote tally to determine "
-        "whether the round PASSED, FAILED, or TIED. For nominal rounds, "
-        "vote counts are auto-computed from the database. For non-nominal "
-        "rounds, the Presidency must provide the decrypted tallies."
-    ),
+    summary="Close voting round",
+    description="Transition to VOTING_CLOSED.",
     dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
 )
-async def resolve_voting_round(
+async def close_voting_round(
     db_session: DbSessionDep,
     background_tasks: BackgroundTasks,
     voting_round_id: uuid.UUID,
-    body: VotingRoundResolveRequest,
 ) -> VotingRoundResponse:
     try:
-        voting_round = await voting_round_service.resolve_voting_round(
+        voting_round = await voting_round_service.close_voting_round(
+            db_session, voting_round_id,
+        )
+    except ValueError as exc:
+        raise ConflictException(str(exc))
+
+    response = VotingRoundResponse.model_validate(voting_round)
+
+    background_tasks.add_task(
+        manager.broadcast,
+        "VOTING_ROUND_CLOSED",
+        {
+            "voting_round_id": str(voting_round_id),
+            "legislative_session_id": str(
+                response.legislative_session_id,
+            ),
+        },
+    )
+
+    return response
+
+@voting_round_router.post(
+    "/voting-rounds/{voting_round_id}/proclaim",
+    response_model=VotingRoundResponse,
+    summary="Proclaim the voting round result",
+    description="Computes and statically saves the result to the DB.",
+    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
+)
+async def proclaim_voting_round(
+    db_session: DbSessionDep,
+    background_tasks: BackgroundTasks,
+    voting_round_id: uuid.UUID,
+    body: VotingRoundProclaimRequest,
+) -> VotingRoundResponse:
+    try:
+        voting_round = await voting_round_service.proclaim_voting_round(
             db_session,
             voting_round_id,
             affirmative=body.affirmative,
             negative=body.negative,
             abstentions=body.abstentions,
-            ws_manager=manager,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
 
     response = VotingRoundResponse.model_validate(voting_round)
 
-    # If the result is TIED, broadcast a dedicated event for Android
-    # tie-breaker UI activation.
     event_type = (
         "VOTING_ROUND_TIED"
         if response.status == RoundStatus.TIED
@@ -304,70 +299,33 @@ async def resolve_voting_round(
     return response
 
 @voting_round_router.post(
-    "/voting-rounds/{voting_round_id}/reopen",
+    "/voting-rounds/{voting_round_id}/rectify",
     response_model=VotingRoundResponse,
-    summary="Reopen a tied voting round",
-    description=(
-        "Reverts a TIED voting round to DRAFT for renewed debate and "
-        "revote. Voids existing non-nominal votes and clears temporal "
-        "markers."
-    ),
+    summary="Rectify (abort and clone) a voting round",
+    description="Marks current round ABORTED and returns the new cloned DRAFT round.",
     dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
 )
-async def reopen_voting_round(
+async def rectify_voting_round(
     db_session: DbSessionDep,
     background_tasks: BackgroundTasks,
     voting_round_id: uuid.UUID,
 ) -> VotingRoundResponse:
     try:
-        voting_round = await voting_round_service.reopen_voting_round(
+        new_round = await voting_round_service.rectify_voting_round(
             db_session, voting_round_id,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
 
-    response = VotingRoundResponse.model_validate(voting_round)
+    response = VotingRoundResponse.model_validate(new_round)
 
-    background_tasks.add_task(
-        manager.broadcast,
-        "VOTING_ROUND_REOPENED",
-        {
-            "voting_round_id": str(voting_round_id),
-            "legislative_session_id": str(response.legislative_session_id),
-        },
-    )
-
-    return response
-
-@voting_round_router.post(
-    "/voting-rounds/{voting_round_id}/abort",
-    response_model=VotingRoundResponse,
-    summary="Abort a voting round",
-    description=(
-        "Graceful fail-safe: voids all non-nominal votes and "
-        "reverts the voting round to DRAFT."
-    ),
-    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
-)
-async def abort_voting_round(
-    db_session: DbSessionDep,
-    background_tasks: BackgroundTasks,
-    voting_round_id: uuid.UUID,
-) -> VotingRoundResponse:
-    try:
-        voting_round = await voting_round_service.abort_voting_round(
-            db_session, voting_round_id,
-        )
-    except ValueError as exc:
-        raise ConflictException(str(exc))
-
-    response = VotingRoundResponse.model_validate(voting_round)
-
+    # Let UI know the old round was aborted.
     background_tasks.add_task(
         manager.broadcast,
         "VOTING_ROUND_ABORTED",
         {
             "voting_round_id": str(voting_round_id),
+            "new_draft_id": str(new_round.id),
             "legislative_session_id": str(response.legislative_session_id),
         },
     )

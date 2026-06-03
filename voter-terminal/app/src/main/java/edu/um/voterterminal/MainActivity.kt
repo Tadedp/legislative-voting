@@ -45,7 +45,7 @@ class MainActivity : FragmentActivity() {
                 // Security Mitigation: Dynamic Screen Wake Lock
                 // Keeps Wi-Fi active and screen on during critical voting states
                 LaunchedEffect(uiState) {
-                    val keepScreenOn = uiState is VotingState.VotingOpen
+                    val keepScreenOn = uiState is VotingState.VotingRoundActive
                             || uiState is VotingState.TieBreakerActive
                     if (keepScreenOn) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -54,6 +54,8 @@ class MainActivity : FragmentActivity() {
                     }
                 }
 
+                val remainingTime by viewModel.remainingTimeSeconds.collectAsState()
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -61,7 +63,8 @@ class MainActivity : FragmentActivity() {
                     VoterTerminalRouter(
                         uiState = uiState,
                         activity = this@MainActivity,
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        remainingTimeSeconds = remainingTime
                     )
                 }
             }
@@ -73,7 +76,8 @@ class MainActivity : FragmentActivity() {
 fun VoterTerminalRouter(
     uiState: VotingState,
     activity: FragmentActivity,
-    viewModel: VotingViewModel
+    viewModel: VotingViewModel,
+    remainingTimeSeconds: Int?
 ) {
     Crossfade(targetState = uiState, label = "Router") { state ->
         when (state) {
@@ -90,15 +94,16 @@ fun VoterTerminalRouter(
             is VotingState.DebateIdle -> {
                 DebateIdleScreen(state = state)
             }
-            is VotingState.VotingOpen -> {
+            is VotingState.VotingRoundActive -> {
                 // Presidential identity comparison for UI forking
                 val isPresident = viewModel.legislatorId != null
                         && viewModel.legislatorId == state.presidingOfficerId
                 VotingScreen(
                     state = state,
-                    isLocked = false,
+                    isLocked = state.status != "VOTING_OPEN",
                     isPresident = isPresident,
                     presidentVotesOrdinarily = state.presidentVotesOrdinarily,
+                    remainingTimeSeconds = remainingTimeSeconds,
                     onVoteClicked = { voteValue ->
                         viewModel.submitVote(activity, voteValue)
                     }
@@ -108,6 +113,7 @@ fun VoterTerminalRouter(
                 VotingScreen(
                     state = state.originalState,
                     isLocked = true,
+                    remainingTimeSeconds = remainingTimeSeconds,
                     onVoteClicked = { /* Ignored — vote already submitted */ }
                 )
             }

@@ -8,40 +8,51 @@ from structlog import get_logger
 log = get_logger(__name__)
 
 class ConnectionManager:
-    """Manages WebSocket connections for all connected voter terminals.
+    """Manages WebSocket connections for all connected voter terminals and dashboards.
 
-    Connections are keyed by device_token for targeted messaging, and a
-    parallel mapping tracks the legislator_id behind each token so that
-    quorum logic can determine which legislators are currently online.
+    Connections are keyed by device_token for targeted messaging to Edge devices.
+    A parallel mapping tracks the legislator_id behind each token.
+    Passive clients (web dashboards) are stored separately.
     """
 
     def __init__(self) -> None:
         self._active_connections: dict[str, WebSocket] = {}
         self._token_to_legislator_id: dict[str, uuid.UUID] = {}
+        self._passive_connections: set[WebSocket] = set()
 
     async def connect(
         self,
         websocket: WebSocket,
-        device_token: str,
+        device_token: str | None = None,
         *,
-        legislator_id: uuid.UUID,
+        legislator_id: uuid.UUID | None = None,
     ) -> None:
-        """Accept a WebSocket and register the device-to-legislator mapping."""
+        """Accept a WebSocket and register it as an active Edge or passive client."""
         await websocket.accept()
-        self._active_connections[device_token] = websocket
-        self._token_to_legislator_id[device_token] = legislator_id
-        log.info(
-            "WebSocket connected. Active connections: %d",
-            len(self._active_connections),
-        )
+        if device_token and legislator_id:
+            self._active_connections[device_token] = websocket
+            self._token_to_legislator_id[device_token] = legislator_id
+            log.info(
+                "Active WebSocket connected. Active connections: %d",
+                len(self._active_connections),
+            )
+        else:
+            self._passive_connections.add(websocket)
+            log.info(
+                "Passive WebSocket connected. Passive connections: %d",
+                len(self._passive_connections),
+            )
 
     def disconnect(self, websocket: WebSocket) -> None:
-        """Remove a WebSocket connection and its legislator mapping.
+        """Remove a WebSocket connection."""
+        if websocket in self._passive_connections:
+            self._passive_connections.remove(websocket)
+            log.info(
+                "Passive WebSocket disconnected. Passive connections: %d",
+                len(self._passive_connections),
+            )
+            return
 
-        Only removes the entry if the stored websocket is the exact same
-        object being disconnected.  This prevents a stale/ghost connection
-        timeout from evicting a newly reconnected device.
-        """
         token_to_remove: str | None = None
         for token, ws in self._active_connections.items():
             if ws is websocket:
@@ -51,18 +62,17 @@ class ConnectionManager:
         if token_to_remove is not None:
             del self._active_connections[token_to_remove]
             self._token_to_legislator_id.pop(token_to_remove, None)
-
-        log.info(
-            "WebSocket disconnected. Active connections: %d",
-            len(self._active_connections),
-        )
+            log.info(
+                "Active WebSocket disconnected. Active connections: %d",
+                len(self._active_connections),
+            )
 
     async def broadcast(
         self,
         event_type: str,
         data: dict[str, Any],
     ) -> None:
-        """Send a JSON event to every connected terminal."""
+        """Send a JSON event to every connected terminal and passive client."""
         message: dict[str, Any] = {
             "event_type": event_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -71,11 +81,18 @@ class ConnectionManager:
 
         stale: list[WebSocket] = []
 
+        # Broadcast to active Edge devices
         for connection in self._active_connections.values():
             try:
                 await connection.send_json(message)
             except Exception:
-                log.error("Failed to send to WebSocket; marking as stale.")
+                stale.append(connection)
+
+        # Broadcast to passive clients
+        for connection in self._passive_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
                 stale.append(connection)
 
         for ws in stale:
@@ -110,16 +127,12 @@ class ConnectionManager:
 
     @property
     def active_count(self) -> int:
-        """Return the number of currently active WebSocket connections."""
+        """Return the number of currently active Edge WebSocket connections."""
         return len(self._active_connections)
 
     @property
     def connected_legislator_ids(self) -> set[uuid.UUID]:
-        """Return the set of legislator UUIDs with active WebSocket connections.
-
-        Used by quorum logic to determine how many legislators are
-        present in the chamber.
-        """
+        """Return the set of legislator UUIDs with active WebSocket connections."""
         return set(self._token_to_legislator_id.values())
 
 manager: ConnectionManager = ConnectionManager()

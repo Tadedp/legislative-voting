@@ -17,6 +17,10 @@ class VotingRoundCreate(BaseModel):
     voting_type_id: uuid.UUID
     is_nominal: bool = True
     president_votes_ordinarily: bool = False
+    time_limit_seconds: Annotated[
+        int | None,
+        Field(default=None, ge=1, description="Countdown timer in seconds"),
+    ] = None
 
 class VotingRoundUpdate(BaseModel):
     specific_reference: Annotated[
@@ -26,11 +30,12 @@ class VotingRoundUpdate(BaseModel):
     voting_type_id: uuid.UUID | None = None
     is_nominal: bool | None = None
     president_votes_ordinarily: bool | None = None
+    time_limit_seconds: Annotated[
+        int | None,
+        Field(default=None, ge=1, description="Countdown timer in seconds"),
+    ] = None
 
-class VotingRoundStatusUpdate(BaseModel):
-    status: RoundStatus
-
-class VotingRoundResolveRequest(BaseModel):
+class VotingRoundProclaimRequest(BaseModel):
     affirmative: Annotated[
         int | None,
         Field(
@@ -71,6 +76,8 @@ class VotingRoundResponse(BaseModel):
     status: RoundStatus
     result: str | None = None
     quorum_present_count: int | None = None
+    certified_quorum_count: int | None = None
+    time_limit_seconds: int | None = None
     president_votes_ordinarily: bool
     tie_breaker_vote_value: str | None = None
     opened_at: datetime | None = None
@@ -91,6 +98,8 @@ class VotingRoundWithItemResponse(BaseModel):
     status: RoundStatus
     result: str | None = None
     quorum_present_count: int | None = None
+    certified_quorum_count: int | None = None
+    time_limit_seconds: int | None = None
     president_votes_ordinarily: bool
     tie_breaker_vote_value: str | None = None
     opened_at: datetime | None = None

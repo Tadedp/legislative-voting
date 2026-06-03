@@ -86,6 +86,7 @@ class SessionKeepAliveService : Service() {
                         val ephemeralPublicKey = event.data["ephemeral_public_key"]?.jsonPrimitive?.content
                         val presidingOfficerId = event.data["presiding_officer_id"]?.jsonPrimitive?.content
                         val presidentVotesOrdinarily = event.data["president_votes_ordinarily"]?.jsonPrimitive?.boolean ?: true
+                        val timeLimitSeconds = event.data["time_limit_seconds"]?.jsonPrimitive?.content?.toIntOrNull()
 
                         // Extract nested agenda_item context for display
                         val agendaItem = event.data["agenda_item"]?.jsonObject
@@ -93,7 +94,7 @@ class SessionKeepAliveService : Service() {
                         val summary = agendaItem?.get("summary")?.jsonPrimitive?.content ?: ""
 
                         sessionManager.updateState(
-                            VotingState.VotingOpen(
+                            VotingState.VotingRoundActive(
                                 votingRoundId = votingRoundId,
                                 title = title,
                                 summary = summary,
@@ -103,7 +104,9 @@ class SessionKeepAliveService : Service() {
                                 isNominal = isNominal,
                                 ephemeralPublicKey = ephemeralPublicKey,
                                 presidingOfficerId = presidingOfficerId,
-                                presidentVotesOrdinarily = presidentVotesOrdinarily
+                                presidentVotesOrdinarily = presidentVotesOrdinarily,
+                                status = "VOTING_OPEN",
+                                timeLimitSeconds = timeLimitSeconds
                             )
                         )
                     }
@@ -113,15 +116,12 @@ class SessionKeepAliveService : Service() {
                         val legislatorId = securePrefsManager.legislatorId
 
                         // Extract stage context for badge rendering on the tie-breaker screen.
-                        // The current VotingOpen state carries the original stage/reference;
-                        // fall back to it if the TIED event doesn't include them.
                         val currentState = sessionManager.state.value
-                        val stage = if (currentState is VotingState.VotingOpen) currentState.stage else "SINGLE"
-                        val specificReference = if (currentState is VotingState.VotingOpen) currentState.specificReference else null
-                        val title = if (currentState is VotingState.VotingOpen) currentState.title else "Unknown"
-                        val summary = if (currentState is VotingState.VotingOpen) currentState.summary else ""
+                        val stage = if (currentState is VotingState.VotingRoundActive) currentState.stage else "SINGLE"
+                        val specificReference = if (currentState is VotingState.VotingRoundActive) currentState.specificReference else null
+                        val title = if (currentState is VotingState.VotingRoundActive) currentState.title else "Unknown"
+                        val summary = if (currentState is VotingState.VotingRoundActive) currentState.summary else ""
 
-                        // Presidential identity comparison: route to the appropriate tie state
                         val tieState = if (legislatorId != null && legislatorId == presidingOfficerId) {
                             VotingState.TieBreakerActive(
                                 votingRoundId = votingRoundId,
@@ -135,13 +135,16 @@ class SessionKeepAliveService : Service() {
                         }
                         sessionManager.updateState(tieState)
                     }
-                    OrchestratorEvent.VOTING_ROUND_CLOSED,
+                    OrchestratorEvent.VOTING_ROUND_CLOSED -> {
+                        val currentState = sessionManager.state.value
+                        if (currentState is VotingState.VotingRoundActive) {
+                            sessionManager.updateState(currentState.copy(status = "VOTING_CLOSED"))
+                        } else if (currentState is VotingState.VoteLocked) {
+                            sessionManager.updateState(currentState.copy(originalState = currentState.originalState.copy(status = "VOTING_CLOSED")))
+                        }
+                    }
                     OrchestratorEvent.VOTING_ROUND_ABORTED,
                     OrchestratorEvent.VOTING_ROUND_RESOLVED -> {
-                        // We do not blindly go to Idle because the AgendaItem might still be on the floor.
-                        // For a robust reactive UI, we can just fetch the REST state, or let the Presidency
-                        // trigger an AGENDA_ITEM_UPDATED if they change its status. For now, we fallback to Idle.
-                        // A better approach would be to check if the item is still in DEBATE, but the event doesn't carry it.
                         sessionManager.updateState(VotingState.Idle)
                     }
                     OrchestratorEvent.AGENDA_ITEM_UPDATED -> {
@@ -149,7 +152,7 @@ class SessionKeepAliveService : Service() {
                         val currentState = sessionManager.state.value
                         
                         // We only transition if we are not currently in an active voting flow
-                        val isVotingFlow = currentState is VotingState.VotingOpen || 
+                        val isVotingFlow = currentState is VotingState.VotingRoundActive || 
                                            currentState is VotingState.VoteLocked || 
                                            currentState is VotingState.TieBreakerActive || 
                                            currentState is VotingState.TieBreakerLocked ||

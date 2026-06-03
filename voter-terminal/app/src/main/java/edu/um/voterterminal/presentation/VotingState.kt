@@ -39,8 +39,10 @@ sealed interface VotingState {
      * @property ephemeralPublicKey RSA public key for client-side encryption (non-nominal only).
      * @property presidingOfficerId The session's presiding officer ID, used for UI forking.
      * @property presidentVotesOrdinarily Whether the president must cast an ordinary vote.
+     * @property status Tracks DRAFT, VOTING_OPEN, or VOTING_CLOSED.
+     * @property timeLimitSeconds Optional countdown timer length.
      */
-    data class VotingOpen(
+    data class VotingRoundActive(
         val votingRoundId: String,
         val title: String,
         val summary: String,
@@ -50,7 +52,9 @@ sealed interface VotingState {
         val isNominal: Boolean,
         val ephemeralPublicKey: String? = null,
         val presidingOfficerId: String? = null,
-        val presidentVotesOrdinarily: Boolean = true
+        val presidentVotesOrdinarily: Boolean = true,
+        val status: String,
+        val timeLimitSeconds: Int? = null
     ) : VotingState
 
     /**
@@ -58,7 +62,7 @@ sealed interface VotingState {
      * The UI should visually lock and disable voting controls, while retaining context.
      */
     data class VoteLocked(
-        val originalState: VotingOpen
+        val originalState: VotingRoundActive
     ) : VotingState
 
     /**

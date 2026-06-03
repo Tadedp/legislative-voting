@@ -10,6 +10,7 @@ from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from src.models.legislator import Legislator
+    from src.models.session_attendance import SessionAttendance
     from src.models.voting_round import VotingRound
 
 @unique
@@ -79,5 +80,10 @@ class LegislativeSession(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
     presiding_officer: Mapped[Legislator | None] = relationship(
         "Legislator",
         foreign_keys=[presiding_officer_id],
+        lazy="raise_on_sql",
+    )
+    session_attendances: Mapped[list["SessionAttendance"]] = relationship(
+        "SessionAttendance",
+        back_populates="legislative_session",
         lazy="raise_on_sql",
     )

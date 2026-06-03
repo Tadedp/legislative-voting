@@ -4,12 +4,12 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.models.nominal_vote import NominalVoteValue
+from src.models.nominal_vote import VoteValue
 
 class NominalVote(BaseModel):
-    motion_id: uuid.UUID
+    voting_round_id: uuid.UUID
     legislator_id: uuid.UUID
-    vote_value: NominalVoteValue
+    vote_value: VoteValue
     timestamp: Annotated[
         int,
         Field(gt=0, description="Unix epoch milliseconds"),
@@ -20,12 +20,9 @@ class NominalVote(BaseModel):
     ]
 
 class NonNominalVote(BaseModel):
-    motion_id: uuid.UUID
+    voting_round_id: uuid.UUID
     legislator_id: uuid.UUID
-    encrypted_payload: Annotated[
-        str,
-        Field(min_length=1),
-    ]
+    vote_value: VoteValue
     timestamp: Annotated[
         int,
         Field(gt=0, description="Unix epoch milliseconds"),
@@ -36,9 +33,9 @@ class NonNominalVote(BaseModel):
     ]
 
 class TieBreakerVote(BaseModel):
-    motion_id: uuid.UUID
+    voting_round_id: uuid.UUID
     legislator_id: uuid.UUID
-    vote_value: NominalVoteValue
+    vote_value: VoteValue
     timestamp: Annotated[
         int,
         Field(gt=0, description="Unix epoch milliseconds"),
@@ -54,18 +51,12 @@ class NominalVoteResponse(BaseModel):
     event_id: uuid.UUID
     voting_round_id: uuid.UUID
     legislator_id: uuid.UUID
-    vote_value: NominalVoteValue
+    vote_value: VoteValue
     cryptographic_signature: str
     timestamp: datetime
 
-
-class NonNominalVoteResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    event_id: uuid.UUID
-    voting_round_id: uuid.UUID
-    legislator_id: uuid.UUID
-    encrypted_payload: str
-    cryptographic_signature: str
-    is_voided: bool
-    timestamp: datetime
+class VotingRoundTallyResponse(BaseModel):
+    affirmative: int
+    negative: int
+    abstentions: int
+    suggested_result: str

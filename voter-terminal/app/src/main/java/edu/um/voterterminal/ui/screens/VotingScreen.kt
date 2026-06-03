@@ -59,10 +59,11 @@ private fun stageBadgeColor(stage: String): Color = when (stage) {
 
 @Composable
 fun VotingScreen(
-    state: VotingState.VotingOpen,
+    state: VotingState.VotingRoundActive,
     isLocked: Boolean = false,
     isPresident: Boolean = false,
     presidentVotesOrdinarily: Boolean = true,
+    remainingTimeSeconds: Int? = null,
     onVoteClicked: (voteValue: String) -> Unit
 ) {
     // Scenario C: President whose ordinary vote is NOT required
@@ -179,6 +180,18 @@ fun VotingScreen(
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
+                    }
+
+                    if (remainingTimeSeconds != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "TIEMPO RESTANTE: $remainingTimeSeconds",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            color = if (remainingTimeSeconds <= 10) Color.Red else MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }

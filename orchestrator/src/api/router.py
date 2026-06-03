@@ -12,6 +12,7 @@ from src.api.routers.auth_router import auth_router
 from src.api.routers.device_router import device_router
 from src.api.routers.health_router import health_router
 from src.api.routers.legislative_session_router import legislative_session_router
+from src.api.routers.attendance_router import attendance_router
 from src.api.routers.agenda_item_router import agenda_item_router
 from src.api.routers.legislator_router import legislator_router
 from src.api.routers.voting_round_router import voting_round_router
@@ -73,6 +74,7 @@ router.include_router(auth_router)
 router.include_router(device_router)
 router.include_router(health_router)
 router.include_router(legislative_session_router)
+router.include_router(attendance_router)
 router.include_router(legislator_router)
 router.include_router(agenda_item_router)
 router.include_router(voting_round_router)

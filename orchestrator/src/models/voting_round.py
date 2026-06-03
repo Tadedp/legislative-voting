@@ -24,7 +24,8 @@ if TYPE_CHECKING:
     from src.models.agenda_item import AgendaItem
     from src.models.legislative_session import LegislativeSession
     from src.models.nominal_vote import NominalVote
-    from src.models.non_nominal_vote import NonNominalVote
+    from src.models.non_nominal_voter import NonNominalVoter
+    from src.models.non_nominal_tally import NonNominalTally
     from src.models.voting_type import VotingType
 
 @unique
@@ -41,6 +42,7 @@ class RoundStatus(StrEnum):
     RESOLVED = "RESOLVED"
     TIED = "TIED"
     ABORTED = "ABORTED"
+    VOIDED = "VOIDED"
 
 class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
     __tablename__ = "voting_rounds"
@@ -80,6 +82,14 @@ class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         nullable=True,
     )
     quorum_present_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    certified_quorum_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    time_limit_seconds: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
@@ -126,8 +136,13 @@ class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         back_populates="voting_round",
         lazy="raise_on_sql",
     )
-    non_nominal_votes: Mapped[list["NonNominalVote"]] = relationship(
-        "NonNominalVote",
+    non_nominal_voters: Mapped[list["NonNominalVoter"]] = relationship(
+        "NonNominalVoter",
+        back_populates="voting_round",
+        lazy="raise_on_sql",
+    )
+    non_nominal_tallies: Mapped[list["NonNominalTally"]] = relationship(
+        "NonNominalTally",
         back_populates="voting_round",
         lazy="raise_on_sql",
     )
