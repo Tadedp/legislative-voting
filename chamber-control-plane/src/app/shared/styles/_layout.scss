@@ -1,0 +1,78 @@
+.shell-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--gov-surface);
+}
+
+.gov-menubar {
+  border: none !important;
+  border-radius: 0 !important;
+  background-color: var(--gov-primary) !important;
+  padding: 0.5rem 2rem !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Ensure menu items inside menubar are light text */
+::ng-deep .gov-menubar .p-menubar-item-link,
+::ng-deep .gov-menubar .p-menuitem-text,
+::ng-deep .gov-menubar .p-menuitem-icon {
+  color: #f1f5f9 !important; /* slate-100 */
+}
+
+::ng-deep .gov-menubar .p-menubar-item-link:hover {
+  background-color: var(--gov-accent) !important;
+  border-radius: 4px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-right: 2rem;
+  
+  .brand-text {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.real-time-clock {
+  color: #cbd5e1; /* slate-300 */
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-right: 1rem;
+  padding-right: 1rem;
+  border-right: 1px solid #475569;
+}
+
+.end-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.role-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.role-admin { background-color: #3b82f6; color: white; }
+.role-presidency { background-color: #eab308; color: #000; }
+.role-secretariat { background-color: #10b981; color: white; }
+
+.shell-content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}

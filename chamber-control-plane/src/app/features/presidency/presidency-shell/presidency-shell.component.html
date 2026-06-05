@@ -1,0 +1,21 @@
+<p-toast></p-toast>
+<div class="shell-layout">
+  <p-menubar [model]="items" styleClass="gov-menubar">
+    <ng-template #start>
+      <div class="brand">
+        <span class="brand-text">Control Plane</span>
+        <span class="role-badge role-presidency">PRESIDENCY</span>
+      </div>
+    </ng-template>
+    <ng-template #end>
+      <div class="flex items-center gap-3 end-controls">
+        <span class="real-time-clock">{{ currentTime | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+        <p-button icon="pi pi-power-off" severity="danger" (onClick)="logout()" ariaLabel="Logout"></p-button>
+      </div>
+    </ng-template>
+  </p-menubar>
+  
+  <main class="shell-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

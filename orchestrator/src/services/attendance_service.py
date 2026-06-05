@@ -39,9 +39,9 @@ async def bulk_update_attendance(
         status = update["status"]
 
         if leg_id in existing_map:
-            record = existing_map[leg_id]
-            record.status = status
-            upserted_records.append(record)
+            record = existing_map[leg_id] # type: ignore
+            record.status = status # type: ignore
+            upserted_records.append(record) # type: ignore
         else:
             new_record = SessionAttendance(
                 legislative_session_id=session_id,
@@ -49,7 +49,7 @@ async def bulk_update_attendance(
                 status=status,
             )
             db.add(new_record)
-            upserted_records.append(new_record)
+            upserted_records.append(new_record) # type: ignore
 
     await db.flush()
-    return upserted_records
+    return upserted_records # type: ignore

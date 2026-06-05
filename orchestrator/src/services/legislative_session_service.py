@@ -4,7 +4,6 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.websocket import ConnectionManager
 from src.models.legislative_session import LegislativeSession, LegSessionStatus
 from src.models.voting_round import VotingRound
 from src.repositories import (
@@ -12,7 +11,7 @@ from src.repositories import (
     legislative_session_repository, 
     voting_round_repository,
 ) 
-from src.services.quorum_service import compute_quorum_minimum, get_session_quorum
+from src.services.quorum_service import compute_quorum_minimum, get_certified_quorum
 
 async def list_legislative_sessions(db: AsyncSession) -> list[LegislativeSession]:
     return await legislative_session_repository.get_all_active(db)
@@ -106,7 +105,6 @@ async def update_legislative_session_status(
     session_id: uuid.UUID,
     *,
     new_status: LegSessionStatus,
-    ws_manager: ConnectionManager,
 ) -> LegislativeSession:
     session = await legislative_session_repository.get_by_id(db, session_id)
 
@@ -117,14 +115,15 @@ async def update_legislative_session_status(
 
     # Quorum guard: prevent activation without sufficient legislators.
     if new_status == LegSessionStatus.ACTIVE:
-        quorum_present, total_members = await get_session_quorum(
-            db, session, ws_manager,
+        # A Legislator-President ALWAYS counts towards general session quorum.
+        quorum_present, total_members = await get_certified_quorum(
+            db, session, president_votes_ordinarily=True
         )
         quorum_minimum = compute_quorum_minimum(total_members)
 
         if quorum_present < quorum_minimum:
             raise ValueError(
-                f"No quorum: {quorum_present} legislators present, "
+                f"No quorum: {quorum_present} legislators legally present, "
                 f"{quorum_minimum} required (out of {total_members} total).",
             )
 

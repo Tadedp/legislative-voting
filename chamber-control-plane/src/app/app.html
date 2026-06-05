@@ -1,0 +1,11 @@
+@if (!stateSync.isConnectionStable()) {
+  <div class="connection-lock-overlay">
+    <div class="lock-content">
+      <i class="pi pi-exclamation-triangle lock-icon"></i>
+      <h2>CRITICAL: Connection Lost</h2>
+      <p>State Unverified. Reconnecting...</p>
+      <div class="lock-spinner"></div>
+    </div>
+  </div>
+}
+<router-outlet></router-outlet>

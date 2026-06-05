@@ -1,5 +1,3 @@
-import uuid
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.legislative_session import LegislativeSession, PresidentType

@@ -1,0 +1,78 @@
+<div class="mb-4">
+  <h2 class="text-2xl font-bold mb-2">Legislator & Hardware Enrollment</h2>
+  <p class="text-slate-600">Provision a new physical edge device and tie it to a legislator's identity.</p>
+</div>
+
+<p-message *ngIf="errorMessage" severity="error" styleClass="w-full mb-4">{{ errorMessage }}</p-message>
+
+<p-card>
+  <form [formGroup]="enrollForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="field">
+        <label for="full_name" class="block mb-2 font-semibold text-slate-700">Full Name</label>
+        <input id="full_name" type="text" pInputText formControlName="full_name" class="w-full" placeholder="e.g. John Doe" />
+      </div>
+
+      <div class="field">
+        <label for="national_id" class="block mb-2 font-semibold text-slate-700">National ID (Numeric)</label>
+        <input id="national_id" type="text" pInputText formControlName="national_id" class="w-full" placeholder="e.g. 12345678" />
+      </div>
+    </div>
+
+    <div class="field mt-2">
+      <label for="biometric_payload" class="block mb-2 font-semibold text-slate-700">Biometric Identity Payload</label>
+      <textarea 
+        id="biometric_payload" 
+        formControlName="biometric_payload" 
+        pTextarea
+        rows="3" 
+        class="w-full font-mono text-sm"
+        placeholder="Paste the biometric attestation string...">
+      </textarea>
+    </div>
+
+    <div class="field mt-2">
+      <label for="hardware_payload" class="block mb-2 font-semibold text-slate-700">Hardware Attestation Payload (JSON)</label>
+      <textarea 
+        id="hardware_payload" 
+        formControlName="hardware_payload" 
+        pTextarea
+        rows="5" 
+        class="w-full font-mono text-sm"
+        placeholder='{ "hardware_id": "uuid", "certificate_chain": ["cert1", "cert2"] }'>
+      </textarea>
+    </div>
+
+    <div class="flex justify-end mt-4">
+      <p-button 
+        type="submit" 
+        label="Provision Device" 
+        icon="pi pi-check-circle" 
+        severity="success"
+        [loading]="isLoading"
+        [disabled]="enrollForm.invalid || isLoading">
+      </p-button>
+    </div>
+
+  </form>
+</p-card>
+
+<p-dialog 
+  header="Device Successfully Enrolled" 
+  [(visible)]="showTokenDialog" 
+  [modal]="true" 
+  [closable]="false" 
+  [style]="{width: '500px'}" 
+  styleClass="p-fluid">
+  
+  <p class="mb-4">The device and legislator profile have been provisioned. Please scan this token on the edge tablet to complete out-of-band initialization.</p>
+  
+  <div class="p-3 bg-slate-100 border border-slate-300 rounded font-mono text-lg text-center font-bold break-all mb-4 text-slate-900">
+    {{ generatedToken }}
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button label="Close & Acknowledge" icon="pi pi-check" (onClick)="closeTokenDialog()"></p-button>
+  </ng-template>
+</p-dialog>

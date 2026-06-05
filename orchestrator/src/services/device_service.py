@@ -23,9 +23,9 @@ async def wipe_device(
     device.deleted_at = now
     device.device_token = f"REVOKED_{secrets.token_urlsafe(32)}"
 
-    legislator = device.legislator
-    if legislator is not None:
-        legislator.deleted_at = now
+    #legislator = device.legislator
+    #if legislator is not None:
+    #    legislator.deleted_at = now
 
     await db.flush()
     return device, old_device_token

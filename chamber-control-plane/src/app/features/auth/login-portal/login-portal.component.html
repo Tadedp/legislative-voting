@@ -1,0 +1,47 @@
+<p-toast></p-toast>
+<div class="login-container">
+  <div class="login-header">
+    <h1>Legislative Control</h1>
+    <p>Chamber System Management Panel</p>
+  </div>
+  
+  <p-card styleClass="login-card">
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+      <h3>Operator Authentication</h3>
+      
+      <div class="field">
+        <label for="username">Username</label>
+        <input 
+          id="username" 
+          type="text" 
+          pInputText 
+          formControlName="username" 
+          class="w-full" 
+          placeholder="Enter your username" />
+      </div>
+
+      <div class="field mt-4">
+        <label for="password">Password</label>
+        <p-password 
+          id="password" 
+          formControlName="password" 
+          [feedback]="false" 
+          [toggleMask]="true"
+          styleClass="w-full" 
+          inputStyleClass="w-full"
+          placeholder="Enter your password">
+        </p-password>
+      </div>
+      
+      <p-button 
+        type="submit"
+        label="Enter Dashboard" 
+        icon="pi pi-sign-in" 
+        styleClass="w-full mt-4" 
+        severity="success"
+        [loading]="isLoading"
+        [disabled]="loginForm.invalid || isLoading">
+      </p-button>
+    </form>
+  </p-card>
+</div>

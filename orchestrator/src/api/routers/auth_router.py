@@ -12,18 +12,21 @@ auth_router = APIRouter(
     tags=["Authentication"],
 )
 
+from src.schemas.user_schemas import UserResponse
+
 @auth_router.post(
     "/login",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
+    response_model=UserResponse,
     summary="System user login",
-    description="Authenticate with username/password. Returns a session cookie.",
+    description="Authenticate with username/password. Returns user data and session cookie.",
 )
 async def login(
     body: LoginRequest,
     request: Request,
     response: Response,
     db_session: DbSessionDep,
-) -> None:
+) -> UserResponse:
     try:
         user = await auth_service.authenticate_user(
             db_session,
@@ -51,6 +54,8 @@ async def login(
         samesite="strict",
         max_age=settings.security.SESSION_EXPIRY_SECONDS,
     )
+
+    return UserResponse.model_validate(user)
 
 @auth_router.post(
     "/logout",

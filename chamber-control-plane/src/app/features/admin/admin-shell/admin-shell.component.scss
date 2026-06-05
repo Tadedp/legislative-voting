@@ -1,0 +1,34 @@
+@use '../../../shared/styles/layout';
+
+.shell-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--gov-surface);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-right: 2rem;
+  
+  .brand-text {
+    font-weight: bold;
+    color: var(--gov-text);
+  }
+}
+
+.end-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.shell-content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
