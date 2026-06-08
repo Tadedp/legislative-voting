@@ -1,0 +1,41 @@
+<p-toast></p-toast>
+
+<div class="mb-4">
+  <h2 class="text-2xl font-bold mb-2">Quorum Matrix</h2>
+  <p class="text-slate-600">The legal attendance ledger. Changes instantly synchronize with the mathematical quorum denominator.</p>
+</div>
+
+<p-message *ngIf="isVotingOpen()" severity="warn" styleClass="w-full mb-4">
+  ATTENDANCE LOCKED: A voting round is currently in progress. Quorum modifications are legally suspended until the round is closed.
+</p-message>
+
+<p-table [value]="attendanceList" [loading]="isLoading" styleClass="p-datatable-striped border border-slate-200">
+  <ng-template pTemplate="header">
+    <tr>
+      <th>Legislator Name</th>
+      <th>National ID</th>
+      <th style="width: 250px; text-align: center;">Status</th>
+    </tr>
+  </ng-template>
+  <ng-template pTemplate="body" let-record>
+    <tr>
+      <td class="font-semibold">{{ record.full_name }}</td>
+      <td class="font-mono text-sm">{{ record.national_id }}</td>
+      <td style="text-align: center;">
+        <p-selectButton 
+          [options]="statusOptions" 
+          [(ngModel)]="record.status" 
+          [disabled]="isVotingOpen()"
+          (onChange)="onStatusChange(record)">
+        </p-selectButton>
+      </td>
+    </tr>
+  </ng-template>
+  <ng-template pTemplate="emptymessage">
+    <tr>
+      <td colspan="3" class="text-center py-8 text-slate-500">
+        No attendance records found. Is the session active?
+      </td>
+    </tr>
+  </ng-template>
+</p-table>

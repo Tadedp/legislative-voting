@@ -17,3 +17,8 @@ class SessionAttendanceResponse(BaseModel):
     legislative_session_id: uuid.UUID
     legislator_id: uuid.UUID
     status: AttendanceStatus
+
+class SessionAttendanceEnriched(SessionAttendanceResponse):
+    full_name: str
+    national_id: str
+

@@ -38,7 +38,7 @@ async def list_agenda_items(
     status_code=status.HTTP_201_CREATED,
     summary="Create an agenda item",
     description="Creates a new agenda item in DRAFT status.",
-    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
+    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY, SystemUserRole.SECRETARY]))],
 )
 async def create_agenda_item(
     db_session: DbSessionDep,
@@ -76,7 +76,7 @@ async def get_agenda_item(
     "/{agenda_item_id}",
     response_model=AgendaItemResponse,
     summary="Update an agenda item",
-    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
+    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY, SystemUserRole.SECRETARY]))],
 )
 async def update_agenda_item(
     db_session: DbSessionDep,
@@ -111,7 +111,7 @@ async def update_agenda_item(
     "/{agenda_item_id}",
     response_model=AgendaItemResponse,
     summary="Soft-delete an agenda item",
-    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
+    dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY, SystemUserRole.SECRETARY]))],
 )
 async def delete_agenda_item(
     db_session: DbSessionDep,

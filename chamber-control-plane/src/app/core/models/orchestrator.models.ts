@@ -9,6 +9,8 @@ export interface ActiveAgendaItem {
   title: string;
   summary: string;
   status: ItemStatus;
+  file_number?: string;
+  category?: string;
 }
 
 export interface ActiveVotingRound {
@@ -40,7 +42,7 @@ export interface CurrentStateResponse {
 
 // WebSocket Event Structure
 export interface OrchestratorEvent {
-  event_type: 'SESSION_STATUS_CHANGED' | 'AGENDA_ITEM_UPDATED' | 'VOTING_ROUND_OPENED' | 'VOTING_ROUND_CLOSED' | 'VOTING_ROUND_ABORTED' | 'VOTING_ROUND_RESOLVED' | 'VOTE_CAST' | 'QUORUM_WARNING';
+  event_type: 'SESSION_STATUS_CHANGED' | 'AGENDA_ITEM_UPDATED' | 'VOTING_ROUND_OPENED' | 'VOTING_ROUND_CLOSED' | 'VOTING_ROUND_ABORTED' | 'VOTING_ROUND_RESOLVED' | 'VOTING_ROUND_TIED' | 'VOTE_CAST' | 'QUORUM_WARNING';
   data: any; // Mapped to the specific event delta
   timestamp: string;
 }

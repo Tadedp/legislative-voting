@@ -26,9 +26,9 @@ export class SecretariatShellComponent implements OnInit, OnDestroy {
   clockInterval: any;
 
   items: MenuItem[] = [
-    { label: 'Attendance', icon: 'pi pi-check-square' },
-    { label: 'Agenda Items', icon: 'pi pi-list' },
-    { label: 'Read Tallies', icon: 'pi pi-eye' }
+    { label: 'Attendance', icon: 'pi pi-check-square', routerLink: 'quorum' },
+    { label: 'Agenda Items', icon: 'pi pi-list', routerLink: 'agenda' },
+    { label: 'Read Tallies', icon: 'pi pi-eye', disabled: true } // For future Phase 5 spec
   ];
 
   ngOnInit() {

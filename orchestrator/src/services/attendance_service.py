@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.legislator import Legislator
 from src.models.session_attendance import AttendanceStatus, SessionAttendance
 from src.repositories import legislative_session_repository
 
@@ -19,6 +20,33 @@ async def get_attendance_by_session(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+async def get_enriched_attendance_by_session(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+) -> list[dict[str, uuid.UUID | AttendanceStatus | str]]:
+    session = await legislative_session_repository.get_by_id(db, session_id)
+    if session is None:
+        raise ValueError("Legislative session not found.")
+
+    stmt = (
+        select(SessionAttendance, Legislator.full_name, Legislator.national_id)
+        .join(Legislator, SessionAttendance.legislator_id == Legislator.id)
+        .where(SessionAttendance.legislative_session_id == session_id)
+    )
+    result = await db.execute(stmt)
+    
+    enriched: list[dict[str, uuid.UUID | AttendanceStatus | str]] = []
+    for row in result:
+        attendance = row.SessionAttendance
+        enriched.append({
+            "legislative_session_id": attendance.legislative_session_id,
+            "legislator_id": attendance.legislator_id,
+            "status": attendance.status,
+            "full_name": row.full_name,
+            "national_id": row.national_id
+        })
+    return enriched
 
 async def bulk_update_attendance(
     db: AsyncSession,

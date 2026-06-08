@@ -15,7 +15,10 @@
     </ng-template>
   </p-menubar>
   
-  <main class="shell-content">
-    <router-outlet></router-outlet>
+  <main class="shell-content p-6">
+    <div class="max-w-6xl mx-auto">
+      <app-session-control></app-session-control>
+      <app-voting-operator></app-voting-operator>
+    </div>
   </main>
 </div>

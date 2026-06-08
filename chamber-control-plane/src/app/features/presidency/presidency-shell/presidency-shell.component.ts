@@ -10,10 +10,13 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
+import { SessionControlComponent } from '../session-control/session-control.component';
+import { VotingOperatorComponent } from '../voting-operator/voting-operator.component';
+
 @Component({
   selector: 'app-presidency-shell',
   standalone: true,
-  imports: [CommonModule, RouterModule, MenubarModule, SelectModule, FormsModule, ButtonModule, ToastModule],
+  imports: [CommonModule, RouterModule, MenubarModule, SelectModule, FormsModule, ButtonModule, ToastModule, SessionControlComponent, VotingOperatorComponent],
   providers: [MessageService],
   templateUrl: './presidency-shell.component.html',
   styleUrls: ['./presidency-shell.component.scss']
@@ -25,11 +28,7 @@ export class PresidencyShellComponent implements OnInit, OnDestroy {
   currentTime = new Date();
   clockInterval: any;
 
-  items: MenuItem[] = [
-    { label: 'Sessions', icon: 'pi pi-calendar' },
-    { label: 'Voting Rounds', icon: 'pi pi-chart-bar' },
-    { label: 'Proclaim Results', icon: 'pi pi-megaphone' }
-  ];
+  items: MenuItem[] = [];
 
   ngOnInit() {
     this.clockInterval = setInterval(() => {

@@ -6,7 +6,7 @@ from src.api.dependencies.auth_deps import check_access, get_current_user
 from src.api.dependencies.common_deps import DbSessionDep
 from src.api.exceptions import NotFoundException
 from src.models.system_user import SystemUserRole
-from src.schemas.attendance_schemas import AttendanceBulkUpdate, SessionAttendanceResponse
+from src.schemas.attendance_schemas import AttendanceBulkUpdate, SessionAttendanceResponse, SessionAttendanceEnriched
 from src.services import attendance_service
 
 attendance_router = APIRouter(
@@ -16,7 +16,7 @@ attendance_router = APIRouter(
 
 @attendance_router.get(
     "",
-    response_model=list[SessionAttendanceResponse],
+    response_model=list[SessionAttendanceEnriched],
     summary="Get session attendance",
     description="Returns the attendance ledger for a legislative session.",
     dependencies=[Depends(get_current_user)],
@@ -24,15 +24,15 @@ attendance_router = APIRouter(
 async def get_attendance(
     db_session: DbSessionDep,
     legislative_session_id: uuid.UUID,
-) -> list[SessionAttendanceResponse]:
+) -> list[SessionAttendanceEnriched]:
     try:
-        records = await attendance_service.get_attendance_by_session(
+        records = await attendance_service.get_enriched_attendance_by_session(
             db_session, legislative_session_id,
         )
     except ValueError as exc:
         raise NotFoundException(str(exc))
 
-    return [SessionAttendanceResponse.model_validate(r) for r in records]
+    return [SessionAttendanceEnriched.model_validate(r) for r in records]
 
 @attendance_router.post(
     "/bulk",

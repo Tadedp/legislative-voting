@@ -19,6 +19,26 @@
     "secure": false,
     "changeOrigin": true
   },
+  "/voting-rounds": {
+    "target": "http://localhost:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/voting-types": {
+    "target": "http://localhost:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/votes": {
+    "target": "http://localhost:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/agenda-items": {
+    "target": "http://localhost:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
   "/ws": {
     "target": "ws://localhost:8000",
     "secure": false,

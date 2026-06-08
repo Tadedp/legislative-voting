@@ -1,0 +1,26 @@
+.pulse-danger {
+  animation: pulse-danger 2s infinite;
+}
+
+@keyframes pulse-danger {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+:host ::ng-deep .custom-tied-message {
+  .p-message {
+    background-color: #fef08a !important; /* Tailwind yellow-200 */
+    border: 2px solid #eab308 !important; /* Tailwind yellow-500 */
+    color: #854d0e !important; /* Tailwind yellow-800 */
+  }
+  .p-message-icon {
+    color: #a16207 !important; /* Tailwind yellow-700 */
+  }
+}

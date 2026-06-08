@@ -111,12 +111,21 @@ export class StateSyncService {
         this.activeItem.set(event.data);
         break;
       case 'VOTING_ROUND_OPENED':
-      case 'VOTING_ROUND_CLOSED':
-      case 'VOTING_ROUND_ABORTED':
-      case 'VOTING_ROUND_RESOLVED':
-        // Overwrite the voting round state with the incoming payload.
-        // For VOTING_ROUND_CLOSED, this natively captures 'TIED' vs 'RESOLVED' via the payload's status property.
         this.votingRound.set(event.data);
+        break;
+      case 'VOTING_ROUND_CLOSED':
+        // The backend payload only has ids, so we merge the state manually
+        this.votingRound.update(current => current ? { ...current, status: 'VOTING_CLOSED' } : null);
+        break;
+      case 'VOTING_ROUND_TIED':
+        this.votingRound.update(current => current ? { ...current, status: 'TIED' } : null);
+        break;
+      case 'VOTING_ROUND_RESOLVED':
+        this.votingRound.update(current => current ? { ...current, status: 'RESOLVED' } : null);
+        break;
+      case 'VOTING_ROUND_ABORTED':
+        // Void the round entirely so the President can start over
+        this.votingRound.set(null);
         break;
       case 'VOTE_CAST':
         // Placeholder for future vote tally implementation

@@ -29,7 +29,12 @@ export const routes: Routes = [
   {
     path: 'secretariat',
     loadComponent: () => import('./features/secretariat/secretariat-shell/secretariat-shell.component').then(m => m.SecretariatShellComponent),
-    canMatch: [rbacGuard(['SECRETARY'])]
+    canMatch: [rbacGuard(['SECRETARY'])],
+    children: [
+      { path: '', redirectTo: 'quorum', pathMatch: 'full' },
+      { path: 'quorum', loadComponent: () => import('./features/secretariat/quorum-matrix/quorum-matrix.component').then(m => m.QuorumMatrixComponent) },
+      { path: 'agenda', loadComponent: () => import('./features/secretariat/agenda-management/agenda-management.component').then(m => m.AgendaManagementComponent) }
+    ]
   },
   {
     path: '**',
