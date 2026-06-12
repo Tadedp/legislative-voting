@@ -5,7 +5,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '63b03d779e70'
+revision: str = '841cd2bde874'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -30,15 +30,17 @@ def upgrade() -> None:
     op.create_table('legislators',
     sa.Column('national_id', sa.Text(), nullable=False),
     sa.Column('full_name', sa.Text(), nullable=False),
-    sa.Column('current_public_key', sa.Text(), nullable=True),
+    sa.Column('provisioning_token', sa.Text(), nullable=True),
+    sa.Column('provisioning_token_generated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('provisioning_token_expires_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('enrolled_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.UUID(), server_default=sa.text('uuidv7()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_legislators')),
-    sa.UniqueConstraint('current_public_key', name=op.f('uq_legislators_current_public_key')),
     sa.UniqueConstraint('national_id', name=op.f('uq_legislators_national_id'))
     )
+    op.create_index(op.f('ix_legislators_provisioning_token'), 'legislators', ['provisioning_token'], unique=True)
     op.create_table('system_users',
     sa.Column('username', sa.Text(), nullable=False),
     sa.Column('password_hash', sa.Text(), nullable=False),
@@ -64,7 +66,8 @@ def upgrade() -> None:
     )
     op.create_table('devices',
     sa.Column('legislator_id', sa.UUID(), nullable=False),
-    sa.Column('hardware_id', sa.UUID(), nullable=False),
+    sa.Column('hardware_fingerprint', sa.Text(), nullable=False),
+    sa.Column('public_key_pem', sa.Text(), nullable=False),
     sa.Column('device_token', sa.Text(), nullable=False),
     sa.Column('assigned_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('id', sa.UUID(), server_default=sa.text('uuidv7()'), nullable=False),
@@ -72,7 +75,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['legislator_id'], ['legislators.id'], name=op.f('fk_devices_legislator_id_legislators')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_devices')),
     sa.UniqueConstraint('device_token', name=op.f('uq_devices_device_token')),
-    sa.UniqueConstraint('hardware_id', name=op.f('uq_devices_hardware_id')),
+    sa.UniqueConstraint('hardware_fingerprint', name=op.f('uq_devices_hardware_fingerprint')),
     sa.UniqueConstraint('legislator_id', name=op.f('uq_devices_legislator_id'))
     )
     op.create_table('legislative_sessions',
@@ -186,6 +189,7 @@ def downgrade() -> None:
     op.drop_table('voting_types')
     op.drop_index('uq_system_users_username_lower', table_name='system_users')
     op.drop_table('system_users')
+    op.drop_index(op.f('ix_legislators_provisioning_token'), table_name='legislators')
     op.drop_table('legislators')
     op.drop_table('agenda_items')
     # ### end Alembic commands ###

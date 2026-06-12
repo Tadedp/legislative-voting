@@ -62,6 +62,12 @@ dependencies {
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.appcompat)
 
+    // CameraX
+    val cameraxVersion = "1.3.1"
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+
     // Ktor Client
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)

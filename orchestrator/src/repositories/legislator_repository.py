@@ -45,6 +45,19 @@ async def get_by_national_id(
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
+async def get_by_provisioning_token(
+    db: AsyncSession,
+    provisioning_token: str,
+) -> Legislator | None:
+    stmt = (
+        select(Legislator)
+        .where(
+            Legislator.provisioning_token == provisioning_token,
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
 async def create(db: AsyncSession, *, legislator: Legislator) -> Legislator:
     db.add(legislator)
     await db.flush()

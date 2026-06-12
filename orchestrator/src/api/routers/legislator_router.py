@@ -7,7 +7,7 @@ from src.api.dependencies.common_deps import DbSessionDep
 from src.api.exceptions import BadRequestException, ConflictException, NotFoundException
 from src.models.system_user import SystemUserRole
 from src.schemas.legislator_schemas import (
-    LegislatorEnroll,
+    LegislatorCreate,
     LegislatorResponse,
     LegislatorUpdate,
 )
@@ -49,29 +49,44 @@ async def get_legislator(
     return LegislatorResponse.model_validate(legislator)
 
 @legislator_router.post(
-    "/enroll",
+    "",
     response_model=LegislatorResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Enroll a legislator",
-    description="Creates a legislator and provisions their device.",
-    dependencies=[Depends(check_access([SystemUserRole.ADMIN]))],
+    summary="Create a legislator",
+    description="Creates a legislator and generates a provisioning token.",
+    dependencies=[Depends(check_access([SystemUserRole.ADMIN, SystemUserRole.PRESIDENCY]))],
 )
-async def enroll_legislator(
+async def create_legislator(
     db_session: DbSessionDep,
-    body: LegislatorEnroll,
+    body: LegislatorCreate,
 ) -> LegislatorResponse:
     try:
-        legislator = await legislator_service.enroll_legislator(
+        legislator = await legislator_service.create_legislator(
             db_session,
             national_id=body.national_id,
             full_name=body.full_name,
-            hardware_id=body.hardware_id,
-            biometric_payload=body.biometric_payload,
-            certificate_chain=body.certificate_chain,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
     
+    return LegislatorResponse.model_validate(legislator)
+
+@legislator_router.post(
+    "/{legislator_id}/provisioning-token",
+    response_model=LegislatorResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Regenerate a provisioning token",
+    dependencies=[Depends(check_access([SystemUserRole.ADMIN, SystemUserRole.PRESIDENCY]))],
+)
+async def regenerate_token(
+    db_session: DbSessionDep,
+    legislator_id: uuid.UUID,
+) -> LegislatorResponse:
+    try:
+        legislator = await legislator_service.regenerate_provisioning_token(db_session, legislator_id)
+    except ValueError as exc:
+        raise NotFoundException(str(exc))
+        
     return LegislatorResponse.model_validate(legislator)
 
 @legislator_router.patch(

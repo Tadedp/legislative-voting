@@ -54,92 +54,24 @@ class OrchestratorClient @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
     
-    private var ephemeralSessionCookie: String? = null
-
-    // -----------------------------------------------------------------------
-    // REST: Session
-    // -----------------------------------------------------------------------
-
     /**
-     * Fetches the current authoritative session state from the Orchestrator.
-     * Used for resynchronization after WS drops or app backgrounding.
+     * Enrolls a device by submitting the One-Time Provisioning Token (OTPT),
+     * RENAPER biometric data, and the X.509 certificate chain.
      *
-     * Requires: enrolled device with a valid `device_token`.
+     * No auth header — the device is not yet provisioned.
      */
-    suspend fun getCurrentSession(): CurrentSessionResponse {
-        val response = httpClient.get("$httpBaseUrl/legislative-sessions/current") {
-            header(HEADER_DEVICE_TOKEN, requireDeviceToken())
-        }
-        if (!response.status.isSuccess()) {
-            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
-        }
-        return response.body()
-    }
-
-    // -----------------------------------------------------------------------
-    // REST: Enrollment
-    // -----------------------------------------------------------------------
-
-    /**
-     * Enrolls a legislator by submitting RENAPER identity data and the
-     * X.509 certificate chain from Android Key Attestation.
-     *
-     * No auth header — the device is not yet provisioned at this point.
-     */
-    suspend fun enrollLegislator(request: EnrollRequest): EnrollResponse {
-        val response = httpClient.post("$httpBaseUrl/legislators/enroll") {
-            contentType(ContentType.Application.Json)
-            setBody(request)
-            ephemeralSessionCookie?.let { cookieVal ->
-                header("Cookie", cookieVal)
-            }
-        }
-        if (!response.status.isSuccess()) {
-            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
-        }
-        return response.body()
-    }
-
-    // -----------------------------------------------------------------------
-    // REST: Ephemeral Admin Authentication (for Provisioning)
-    // -----------------------------------------------------------------------
-
-    /**
-     * Authenticates a system administrator via username/password.
-     * The Ktor [HttpCookies] plugin automatically stores the `HttpOnly`
-     * session cookie returned by the Orchestrator, so subsequent requests
-     * (e.g. [enrollLegislator]) are transparently authenticated.
-     *
-     * This session is **ephemeral** — [adminLogout] MUST be called after
-     * provisioning completes (or fails) to destroy the server-side session.
-     */
-    suspend fun adminLogin(request: LoginRequest) {
-        val response = httpClient.post("$httpBaseUrl/auth/login") {
+    suspend fun enrollDevice(request: DeviceEnrollRequest): DeviceEnrollResponse {
+        val response = httpClient.post("$httpBaseUrl/devices/enroll") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
-        val setCookieHeader = response.headers["Set-Cookie"]
-        if (setCookieHeader != null) {
-            ephemeralSessionCookie = setCookieHeader.substringBefore(";")
-        }
-    }
-
-    /**
-     * Destroys the admin session on the Orchestrator and clears the
-     * in-memory cookie storage to prevent accidental session reuse.
-     */
-    suspend fun adminLogout() {
-        try {
-            httpClient.post("$httpBaseUrl/auth/logout") {
-                ephemeralSessionCookie?.let { cookieVal ->
-                    header("Cookie", cookieVal)
-                }
+        if (!response.status.isSuccess()) {
+            if (response.status.value == 403) {
+                throw IllegalStateException("HTTP 403")
             }
-        } catch (_: Exception) {
-            // Best-effort: session may already be expired
-        } finally {
-            ephemeralSessionCookie = null
+            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
         }
+        return response.body()
     }
 
     // -----------------------------------------------------------------------

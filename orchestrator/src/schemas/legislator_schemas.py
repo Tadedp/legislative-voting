@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-class LegislatorEnroll(BaseModel):
+class LegislatorCreate(BaseModel):
     national_id: Annotated[
         str, 
         Field(min_length=1, max_length=255),
@@ -12,15 +12,6 @@ class LegislatorEnroll(BaseModel):
     full_name: Annotated[
         str, 
         Field(min_length=1, max_length=500),
-    ]
-    hardware_id: uuid.UUID
-    biometric_payload: Annotated[
-        str,
-        Field(min_length=1),
-    ]
-    certificate_chain: Annotated[
-        list[str],
-        Field(min_length=1),
     ]
 
 class LegislatorUpdate(BaseModel):
@@ -38,7 +29,7 @@ class DeviceResponse(BaseModel):
 
     id: uuid.UUID
     legislator_id: uuid.UUID
-    hardware_id: uuid.UUID
+    hardware_fingerprint: str
     device_token: str
     assigned_at: datetime
     deleted_at: datetime | None = None
@@ -49,7 +40,8 @@ class LegislatorResponse(BaseModel):
     id: uuid.UUID
     national_id: str
     full_name: str
-    current_public_key: str | None = None
+    provisioning_token: str | None = None
+    provisioning_token_expires_at: datetime | None = None
     enrolled_at: datetime
     updated_at: datetime | None = None
     deleted_at: datetime | None = None

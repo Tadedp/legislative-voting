@@ -24,9 +24,18 @@ class Legislator(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
         Text,
         nullable=False,
     )
-    current_public_key: Mapped[str | None] = mapped_column(
+    provisioning_token: Mapped[str | None] = mapped_column(
         Text,
         unique=True,
+        nullable=True,
+        index=True,
+    )
+    provisioning_token_generated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    provisioning_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
     )
     enrolled_at: Mapped[datetime] = mapped_column(

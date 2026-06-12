@@ -1,15 +1,12 @@
-import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.security import extract_public_key_from_cert
-from src.models.device import Device
+from src.core.security import generate_provisioning_token
 from src.models.legislator import Legislator
 from src.repositories import legislator_repository
-from src.services.renaper_client import renaper_client
 
 async def list_legislators(db: AsyncSession) -> list[Legislator]:
     return await legislator_repository.get_all_active(db)
@@ -25,49 +22,48 @@ async def get_legislator(
 
     return legislator
 
-async def enroll_legislator(
+async def create_legislator(
     db: AsyncSession,
     *,
     national_id: str,
     full_name: str,
-    hardware_id: uuid.UUID,
-    biometric_payload: str,
-    certificate_chain: list[str],
-) -> Legislator | None:
+) -> Legislator:
     existing = await legislator_repository.get_by_national_id(db, national_id)
     if existing is not None:
         raise ValueError(
             f"Legislator with national_id '{national_id}' already exists.",
         )
 
-    # Verify legislator identity via the national registry (RENAPER).
-    identity_ok = await renaper_client.verify_identity(
-        national_id, biometric_payload,
-    )
-    if not identity_ok:
-        raise ValueError("RENAPER identity verification failed.")
-
-    # Extract the secp256k1 public key from the leaf X.509 certificate.
-    device_public_key = extract_public_key_from_cert(certificate_chain[0])
+    now = datetime.now(timezone.utc)
+    
+    token = generate_provisioning_token()
 
     legislator = Legislator(
         national_id=national_id,
         full_name=full_name,
-        current_public_key=device_public_key,
+        provisioning_token=token,
+        provisioning_token_generated_at=now,
+        provisioning_token_expires_at=now + timedelta(minutes=15),
     )
     legislator = await legislator_repository.create(db, legislator=legislator)
+    return legislator
 
-    device_token = secrets.token_urlsafe(32)
-
-    # Provision the device with the Android-generated hardware UUID.
-    device = Device(
-        legislator_id=legislator.id,
-        hardware_id=hardware_id,
-        device_token=device_token,
-    )
-    await legislator_repository.create_device(db, device=device)
-
-    legislator = await legislator_repository.get_by_id(db, legislator.id)
+async def regenerate_provisioning_token(
+    db: AsyncSession,
+    legislator_id: uuid.UUID,
+) -> Legislator:
+    legislator = await legislator_repository.get_by_id(db, legislator_id)
+    if legislator is None or legislator.deleted_at is not None:
+        raise ValueError("Legislator not found.")
+        
+    now = datetime.now(timezone.utc)
+    
+    legislator.provisioning_token = generate_provisioning_token()
+    legislator.provisioning_token_generated_at = now
+    legislator.provisioning_token_expires_at = now + timedelta(minutes=15)
+    
+    await db.flush()
+    await db.refresh(legislator)
     return legislator
 
 async def update_legislator(

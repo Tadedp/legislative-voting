@@ -82,10 +82,13 @@ fun VoterTerminalRouter(
     Crossfade(targetState = uiState, label = "Router") { state ->
         when (state) {
             is VotingState.Unprovisioned -> {
+                val provisioningError by viewModel.provisioningError.collectAsState()
                 ProvisioningScreen(
-                    onProvisionClicked = { nationalId, adminUsername, adminPassword ->
-                        viewModel.provisionDevice(nationalId, adminUsername, adminPassword)
-                    }
+                    onProvisionClicked = { provisioningToken, biometricPayload ->
+                        viewModel.provisionDevice(provisioningToken, biometricPayload)
+                    },
+                    errorMessage = provisioningError,
+                    onClearError = { viewModel.clearProvisioningError() }
                 )
             }
             is VotingState.Idle -> {

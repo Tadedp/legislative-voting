@@ -29,6 +29,15 @@
       <td>{{ legislator.enrolled_at | date:'short' }}</td>
       <td style="text-align: center;">
         <p-button 
+          *ngIf="!legislator.device"
+          icon="pi pi-key" 
+          severity="info" 
+          [rounded]="true" 
+          [text]="true" 
+          title="Regenerate Provisioning Token"
+          (onClick)="regenerateToken(legislator.id)">
+        </p-button>
+        <p-button 
           *ngIf="legislator.device"
           icon="pi pi-trash" 
           severity="danger" 
@@ -46,3 +55,22 @@
     </tr>
   </ng-template>
 </p-table>
+
+<p-dialog 
+  header="Token Generated" 
+  [(visible)]="showTokenDialog" 
+  [modal]="true" 
+  [closable]="false" 
+  [style]="{width: '500px'}" 
+  styleClass="p-fluid">
+  
+  <p class="mb-4">Please use this One-Time Provisioning Token (OTPT) on the edge tablet to securely enroll the device.</p>
+  
+  <div class="p-3 bg-slate-100 border border-slate-300 rounded font-mono text-lg text-center font-bold break-all mb-4 text-slate-900">
+    {{ generatedToken }}
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button label="Close & Acknowledge" icon="pi pi-check" (onClick)="closeTokenDialog()"></p-button>
+  </ng-template>
+</p-dialog>

@@ -9,8 +9,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import edu.um.voterterminal.data.local.SecurePrefsManager
-import edu.um.voterterminal.data.network.EnrollRequest
-import edu.um.voterterminal.data.network.LoginRequest
+import edu.um.voterterminal.data.network.DeviceEnrollRequest
 import edu.um.voterterminal.data.network.NominalVoteRequest
 import edu.um.voterterminal.data.network.NonNominalVoteRequest
 import edu.um.voterterminal.data.network.OrchestratorClient
@@ -24,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.security.MessageDigest
 import java.util.UUID
 import javax.inject.Inject
 
@@ -46,6 +46,9 @@ class VotingViewModel @Inject constructor(
 
     private val _remainingTimeSeconds = MutableStateFlow<Int?>(null)
     val remainingTimeSeconds: StateFlow<Int?> = _remainingTimeSeconds
+
+    private val _provisioningError = MutableStateFlow<String?>(null)
+    val provisioningError: StateFlow<String?> = _provisioningError
 
     private var timerJob: kotlinx.coroutines.Job? = null
 
@@ -153,37 +156,55 @@ class VotingViewModel @Inject constructor(
         ContextCompat.startForegroundService(context, intent)
     }
 
+    fun clearProvisioningError() {
+        _provisioningError.value = null
+    }
+
     /**
      * Provisions the device by generating a Keystore key pair and enrolling via the REST API.
      */
-    fun provisionDevice(nationalId: String, adminUsername: String, adminPassword: String) {
+    fun provisionDevice(provisioningToken: String, biometricPayload: String) {
         viewModelScope.launch {
             try {
-                // 1. Authenticate Admin (ephemeral session)
-                orchestratorClient.adminLogin(LoginRequest(adminUsername, adminPassword))
+                _provisioningError.value = null
 
-                // 2. Generate hardware-bound key pair
-                val certChain = keyStoreManager.generateKeyPairWithAttestation(nationalId)
-                val enrollRequest = EnrollRequest(
-                    nationalId = nationalId,
-                    fullName = "Mock Legislator Name",
-                    hardwareId = securePrefsManager.hardwareId,
-                    biometricPayload = "MOCK_FACIAL_CAPTURE_BASE64",
+                // 1. Generate hardware-bound key pair, passing OTPT as challenge
+                val certChain = keyStoreManager.generateKeyPairWithAttestation(provisioningToken)
+                
+                // 2. Compute hardware fingerprint (SHA-256 of the DER encoded public key inside the cert)
+                // Note: The KeyStoreManager returns Base64 encoded DER certificates.
+                val certBytes = android.util.Base64.decode(certChain[0], android.util.Base64.DEFAULT)
+                val factory = java.security.cert.CertificateFactory.getInstance("X.509")
+                val cert = factory.generateCertificate(java.io.ByteArrayInputStream(certBytes)) as java.security.cert.X509Certificate
+                val pubKeyBytes = cert.publicKey.encoded // SubjectPublicKeyInfo in DER
+                val digest = MessageDigest.getInstance("SHA-256")
+                val hashBytes = digest.digest(pubKeyBytes)
+                val hardwareFingerprint = hashBytes.joinToString("") { "%02x".format(it) }
+
+                val enrollRequest = DeviceEnrollRequest(
+                    provisioningToken = provisioningToken,
+                    biometricPayload = biometricPayload,
+                    hardwareFingerprint = hardwareFingerprint,
                     certificateChain = certChain
                 )
 
-                // 3. Enroll via REST (admin cookie is sent automatically)
-                val response = orchestratorClient.enrollLegislator(enrollRequest)
-                securePrefsManager.deviceToken = response.device.deviceToken
-                securePrefsManager.legislatorId = response.id
+                // 3. Enroll via REST
+                val response = orchestratorClient.enrollDevice(enrollRequest)
+                securePrefsManager.deviceToken = response.deviceToken
+                securePrefsManager.legislatorId = response.legislatorId
 
                 sessionManager.updateState(VotingState.Idle)
                 startKeepAliveService()
+            } catch (e: IllegalStateException) {
+                if (e.message == "HTTP 403") {
+                    _provisioningError.value = "Identity verification failed. The provisioning token has been consumed. Please request a new token from the Administrator."
+                } else {
+                    _provisioningError.value = e.message
+                    e.printStackTrace()
+                }
             } catch (e: Exception) {
+                _provisioningError.value = e.message
                 e.printStackTrace()
-            } finally {
-                // 4. ALWAYS destroy admin session
-                orchestratorClient.adminLogout()
             }
         }
     }

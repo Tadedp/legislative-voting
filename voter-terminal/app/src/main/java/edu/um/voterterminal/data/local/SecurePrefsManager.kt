@@ -42,24 +42,6 @@ class SecurePrefsManager @Inject constructor(
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
-    init {
-        // Generate and persist hardware_id on first-ever initialization.
-        // This value is immutable once written — it anchors the device identity.
-        if (!prefs.contains(KEY_HARDWARE_ID)) {
-            prefs.edit()
-                .putString(KEY_HARDWARE_ID, UUID.randomUUID().toString())
-                .apply()
-        }
-    }
-
-    /**
-     * The device's permanent hardware identifier (UUIDv4).
-     * Generated once on first launch and never changes.
-     */
-    val hardwareId: String
-        get() = prefs.getString(KEY_HARDWARE_ID, null)
-            ?: throw IllegalStateException("hardware_id must exist after initialization")
-
     /**
      * The Orchestrator-issued device token, or `null` if the device is not yet enrolled.
      */

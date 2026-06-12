@@ -4,16 +4,43 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from src.api.dependencies.auth_deps import check_access
 from src.api.dependencies.common_deps import DbSessionDep
-from src.api.exceptions import NotFoundException
+from src.api.exceptions import BadRequestException, UnauthorizedException, ForbiddenException, NotFoundException
 from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.schemas.legislator_schemas import DeviceResponse
+from src.schemas.device_enrollment_schemas import DeviceEnrollRequest, DeviceEnrollResponse
 from src.services import device_service
 
 device_router = APIRouter(
     prefix="/devices",
     tags=["Devices"],
 )
+
+@device_router.post(
+    "/enroll",
+    response_model=DeviceEnrollResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Enroll a device with OTPT and cryptographic attestation",
+)
+async def enroll_device(
+    db_session: DbSessionDep,
+    body: DeviceEnrollRequest,
+) -> DeviceEnrollResponse:
+    try:
+        result = await device_service.enroll_device(
+            db_session,
+            provisioning_token=body.provisioning_token,
+            biometric_payload=body.biometric_payload,
+            hardware_fingerprint=body.hardware_fingerprint,
+            certificate_chain=body.certificate_chain,
+        )
+        return DeviceEnrollResponse(**result)
+    except PermissionError as exc:
+        if str(exc) == "Identity verification failed.":
+            raise ForbiddenException(str(exc))
+        raise UnauthorizedException(str(exc))
+    except ValueError as exc:
+        raise BadRequestException(str(exc))
 
 @device_router.post(
     "/{device_id}/wipe",

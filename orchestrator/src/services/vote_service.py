@@ -1,9 +1,10 @@
 import json
 import uuid
+import base64
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.security import verify_secp256r1_signature
+from src.core.security import verify_secp256r1_signature, extract_public_key_from_cert
 from src.models.nominal_vote import NominalVote, VoteValue
 from src.models.non_nominal_tally import NonNominalTally
 from src.models.non_nominal_voter import NonNominalVoter
@@ -13,7 +14,16 @@ from src.repositories import (
     legislative_session_repository,
     vote_repository,
     voting_round_repository,
+    device_repository,
 )
+
+async def _get_device_hex_key(db_session: AsyncSession, legislator_id: uuid.UUID) -> str:
+    device = await device_repository.get_active_device_by_legislator_id(db_session, legislator_id)
+    if device is None:
+        raise ValueError("Legislator has no active device.")
+    
+    cert_b64 = base64.b64encode(device.public_key_pem.encode('utf-8')).decode('utf-8')
+    return extract_public_key_from_cert(cert_b64)
 
 async def cast_nominal_vote(
     db_session: AsyncSession,
@@ -29,8 +39,7 @@ async def cast_nominal_vote(
     if legislator is None or legislator.deleted_at is not None:
         raise ValueError("Legislator not found.")
 
-    if legislator.current_public_key is None:
-        raise ValueError("Legislator has no registered public key.")
+    public_key_hex = await _get_device_hex_key(db_session, legislator_id)
 
     canonical_payload = json.dumps(
         {
@@ -44,7 +53,7 @@ async def cast_nominal_vote(
     ).encode("utf-8")
 
     if not verify_secp256r1_signature(
-        public_key_hex=legislator.current_public_key,
+        public_key_hex=public_key_hex,
         payload=canonical_payload,
         signature_hex=cryptographic_signature,
     ):
@@ -73,8 +82,7 @@ async def cast_non_nominal_vote(
     if legislator is None or legislator.deleted_at is not None:
         raise ValueError("Legislator not found.")
 
-    if legislator.current_public_key is None:
-        raise ValueError("Legislator has no registered public key.")
+    public_key_hex = await _get_device_hex_key(db_session, legislator_id)
 
     canonical_payload = json.dumps(
         {
@@ -88,7 +96,7 @@ async def cast_non_nominal_vote(
     ).encode("utf-8")
 
     if not verify_secp256r1_signature(
-        public_key_hex=legislator.current_public_key,
+        public_key_hex=public_key_hex,
         payload=canonical_payload,
         signature_hex=cryptographic_signature,
     ):
@@ -126,7 +134,6 @@ async def cast_tie_breaker_vote(
             "Only AFFIRMATIVE or NEGATIVE are permitted.",
         )
 
-    # Retrieve and validate the voting round.
     voting_round = await voting_round_repository.get_by_id(
         db_session, voting_round_id,
     )
@@ -139,7 +146,6 @@ async def cast_tie_breaker_vote(
             "status is 'TIED'.",
         )
 
-    # Retrieve the legislative session to verify presidential identity.
     leg_session = await legislative_session_repository.get_by_id(
         db_session, voting_round.legislative_session_id,
     )
@@ -156,13 +162,11 @@ async def cast_tie_breaker_vote(
             "Tie-breaker vote must be cast by the presiding officer.",
         )
 
-    # Verify the cryptographic signature.
     legislator = await legislator_repository.get_by_id(db_session, legislator_id)
     if legislator is None or legislator.deleted_at is not None:
         raise ValueError("Legislator not found.")
 
-    if legislator.current_public_key is None:
-        raise ValueError("Legislator has no registered public key.")
+    public_key_hex = await _get_device_hex_key(db_session, legislator_id)
 
     canonical_payload = json.dumps(
         {
@@ -176,16 +180,14 @@ async def cast_tie_breaker_vote(
     ).encode("utf-8")
 
     if not verify_secp256r1_signature(
-        public_key_hex=legislator.current_public_key,
+        public_key_hex=public_key_hex,
         payload=canonical_payload,
         signature_hex=cryptographic_signature,
     ):
         raise ValueError("Cryptographic signature verification failed.")
 
-    # Record the deciding vote on the round itself.
     voting_round.tie_breaker_vote_value = vote_value.value
 
-    # Determine the final result based on the tie-breaker.
     if vote_value == VoteValue.AFFIRMATIVE:
         voting_round.result = "PASSED"
     else:

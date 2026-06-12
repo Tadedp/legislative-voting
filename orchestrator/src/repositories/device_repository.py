@@ -33,3 +33,17 @@ async def get_by_id(
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+async def get_active_device_by_legislator_id(
+    db: AsyncSession,
+    legislator_id: uuid.UUID,
+) -> Device | None:
+    stmt = (
+        select(Device)
+        .where(
+            Device.legislator_id == legislator_id,
+            Device.deleted_at.is_(None)
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()

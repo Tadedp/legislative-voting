@@ -9,36 +9,21 @@ import kotlinx.serialization.json.JsonObject
 // ---------------------------------------------------------------------------
 
 /**
- * POST /auth/login
+ * POST /devices/enroll
  *
- * Ephemeral admin authentication used during device provisioning.
- * The session cookie is handled automatically by the Ktor HttpCookies plugin.
+ * Enrolls a device using a provisioning token, biometric verification,
+ * and cryptographic attestation. No auth header required.
  */
 @Serializable
-data class LoginRequest(
-    val username: String,
-    val password: String
-)
-
-/**
- * POST /legislators/enroll
- *
- * Enrolls a legislator by submitting identity verification data and
- * the X.509 certificate chain from Android Key Attestation.
- */
-@Serializable
-data class EnrollRequest(
-    @SerialName("national_id")
-    val nationalId: String,
-
-    @SerialName("hardware_id")
-    val hardwareId: String,
-
-    @SerialName("full_name")
-    val fullName: String,
+data class DeviceEnrollRequest(
+    @SerialName("provisioning_token")
+    val provisioningToken: String,
 
     @SerialName("biometric_payload")
     val biometricPayload: String,
+
+    @SerialName("hardware_fingerprint")
+    val hardwareFingerprint: String,
 
     @SerialName("certificate_chain")
     val certificateChain: List<String>
@@ -177,15 +162,17 @@ data class DeviceInfo(
 )
 
 /**
- * Response from POST /legislators/enroll.
- * Contains the legislator identity and the provisioned device details.
+ * Response from POST /devices/enroll.
+ * Contains the enrolled legislator ID and device token.
  */
 @Serializable
-data class EnrollResponse(
-    val id: String,
-    @SerialName("national_id")
-    val nationalId: String,
-    val device: DeviceInfo
+data class DeviceEnrollResponse(
+    @SerialName("device_token")
+    val deviceToken: String,
+    @SerialName("device_id")
+    val deviceId: String,
+    @SerialName("legislator_id")
+    val legislatorId: String
 )
 
 /**

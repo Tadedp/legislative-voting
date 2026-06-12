@@ -20,30 +20,6 @@
       </div>
     </div>
 
-    <div class="field mt-2">
-      <label for="biometric_payload" class="block mb-2 font-semibold text-slate-700">Biometric Identity Payload</label>
-      <textarea 
-        id="biometric_payload" 
-        formControlName="biometric_payload" 
-        pTextarea
-        rows="3" 
-        class="w-full font-mono text-sm"
-        placeholder="Paste the biometric attestation string...">
-      </textarea>
-    </div>
-
-    <div class="field mt-2">
-      <label for="hardware_payload" class="block mb-2 font-semibold text-slate-700">Hardware Attestation Payload (JSON)</label>
-      <textarea 
-        id="hardware_payload" 
-        formControlName="hardware_payload" 
-        pTextarea
-        rows="5" 
-        class="w-full font-mono text-sm"
-        placeholder='{ "hardware_id": "uuid", "certificate_chain": ["cert1", "cert2"] }'>
-      </textarea>
-    </div>
-
     <div class="flex justify-end mt-4">
       <p-button 
         type="submit" 
@@ -66,7 +42,7 @@
   [style]="{width: '500px'}" 
   styleClass="p-fluid">
   
-  <p class="mb-4">The device and legislator profile have been provisioned. Please scan this token on the edge tablet to complete out-of-band initialization.</p>
+  <p class="mb-4">The legislator profile has been created. Please use this One-Time Provisioning Token (OTPT) on the edge tablet to securely enroll the device.</p>
   
   <div class="p-3 bg-slate-100 border border-slate-300 rounded font-mono text-lg text-center font-bold break-all mb-4 text-slate-900">
     {{ generatedToken }}

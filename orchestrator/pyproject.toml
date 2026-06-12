@@ -27,4 +27,5 @@ dependencies = [
 
     # Logging
     "structlog==25.5.0",
+    "asn1crypto==1.5.1",
 ]
