@@ -53,14 +53,14 @@ export class LoginPortalComponent {
         this.isLoading = false;
         this.loginForm.enable();
         
-        let errorMsg = 'An unexpected error occurred.';
+        let errorMsg = 'Ocurrió un error inesperado.';
         if (err.status === 401 || err.status === 403) {
-          errorMsg = 'Invalid operator credentials.';
+          errorMsg = 'Credenciales de operador inválidas.';
         }
 
         this.messageService.add({
           severity: 'error',
-          summary: 'Authentication Failed',
+          summary: 'Fallo de Autenticación',
           detail: errorMsg
         });
       }

@@ -38,8 +38,8 @@ export class AgendaManagementComponent implements OnInit {
   agendaForm: FormGroup;
 
   categoryOptions = [
-    { label: 'Project', value: 'PROJECT' },
-    { label: 'Motion', value: 'MOTION' }
+    { label: 'Proyecto', value: 'PROJECT' },
+    { label: 'Moción', value: 'MOTION' }
   ];
 
   constructor() {
@@ -64,7 +64,7 @@ export class AgendaManagementComponent implements OnInit {
       },
       error: (err) => {
         this.isLoading = false;
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not load agenda items.' });
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudieron cargar los temas de agenda.' });
       }
     });
   }
@@ -98,18 +98,18 @@ export class AgendaManagementComponent implements OnInit {
         next: () => {
           this.showDialog = false;
           this.loadAgenda();
-          this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Agenda item updated.' });
+          this.messageService.add({ severity: 'success', summary: 'Éxito', detail: 'Tema de agenda actualizado.' });
         },
-        error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not update item.' })
+        error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo actualizar el tema.' })
       });
     } else {
       this.secretariatService.createAgendaItem(data).subscribe({
         next: () => {
           this.showDialog = false;
           this.loadAgenda();
-          this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Agenda item created.' });
+          this.messageService.add({ severity: 'success', summary: 'Éxito', detail: 'Tema de agenda creado.' });
         },
-        error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not create item.' })
+        error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo crear el tema.' })
       });
     }
   }
@@ -117,10 +117,10 @@ export class AgendaManagementComponent implements OnInit {
   sendToFloor(item: AgendaItem) {
     this.secretariatService.updateAgendaItem(item.id, { status: 'DEBATE' }).subscribe({
       next: () => {
-        this.messageService.add({ severity: 'success', summary: 'Sent to Floor', detail: `${item.title} is now in debate.` });
+        this.messageService.add({ severity: 'success', summary: 'Enviado a Recinto', detail: `${item.title} está ahora en debate.` });
         this.loadAgenda();
       },
-      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not send item to floor.' })
+      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo enviar el tema a recinto.' })
     });
   }
 }

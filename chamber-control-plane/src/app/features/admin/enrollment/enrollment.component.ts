@@ -73,7 +73,7 @@ export class EnrollmentComponent {
         this.isLoading = false;
         this.enrollForm.enable();
         
-        this.errorMessage = err.error?.detail || 'An error occurred during legislator creation.';
+        this.errorMessage = err.error?.detail || 'Ocurrió un error durante la creación del legislador.';
       }
     });
   }

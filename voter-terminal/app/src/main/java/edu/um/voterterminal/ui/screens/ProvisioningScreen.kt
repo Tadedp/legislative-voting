@@ -20,10 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import edu.um.voterterminal.R
 import java.io.ByteArrayOutputStream
 
 enum class ProvisioningStep {
@@ -96,14 +98,14 @@ fun TokenGateStep(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Aprovisionamiento de Terminal",
+            text = stringResource(R.string.provisioning_title),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.primary,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Ingrese el Token de Aprovisionamiento (OTPT) proporcionado por el Administrador.",
+            text = stringResource(R.string.provisioning_subtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             textAlign = TextAlign.Center
@@ -114,7 +116,7 @@ fun TokenGateStep(
         OutlinedTextField(
             value = provisioningToken,
             onValueChange = onTokenChange,
-            label = { Text("Token de Aprovisionamiento") },
+            label = { Text(stringResource(R.string.provisioning_token_label)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -138,7 +140,7 @@ fun TokenGateStep(
                 .fillMaxWidth()
                 .height(56.dp)
         ) {
-            Text(text = "Proceed to Facial Capture")
+            Text(text = stringResource(R.string.proceed_facial_capture))
         }
     }
 }
@@ -205,7 +207,7 @@ fun CameraCaptureStep(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onBack, enabled = !isCapturing) {
-                    Text("Back")
+                    Text(stringResource(R.string.back))
                 }
                 Button(
                     onClick = {
@@ -238,7 +240,7 @@ fun CameraCaptureStep(
                     },
                     enabled = !isCapturing
                 ) {
-                    Text("Capture & Provision")
+                    Text(stringResource(R.string.capture_provision))
                 }
             }
         }
@@ -249,16 +251,16 @@ fun CameraCaptureStep(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                "Camera permission is required for facial capture.",
+                stringResource(R.string.camera_permission_required),
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
-                Text("Grant Permission")
+                Text(stringResource(R.string.grant_permission))
             }
             Spacer(modifier = Modifier.height(8.dp))
             TextButton(onClick = onBack) {
-                Text("Back")
+                Text(stringResource(R.string.back))
             }
         }
     }

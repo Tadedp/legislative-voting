@@ -4,12 +4,12 @@
 <div class="bg-slate-800 text-white p-6 rounded-lg shadow-md mb-6">
   <div class="flex justify-between items-center">
     <div>
-      <h2 class="text-xl font-bold mb-1">Session Control Panel</h2>
+      <h2 class="text-xl font-bold mb-1">Panel de Control de Sesión</h2>
       <p class="text-slate-400 text-sm">
         @if (stateSync.sessionState(); as session) {
-          Current Status: <span class="font-mono px-2 py-1 bg-slate-700 rounded">{{ session.status }}</span>
+          Estado Actual: <span class="font-mono px-2 py-1 bg-slate-700 rounded">{{ session.status }}</span>
         } @else {
-          No active session detected.
+          No se detectó una sesión activa.
         }
       </p>
     </div>
@@ -18,7 +18,7 @@
       <div class="flex gap-3">
         <!-- ACTIVE -->
         <p-button 
-          label="START SESSION" 
+          label="INICIAR SESIÓN" 
           icon="pi pi-play" 
           severity="success" 
           [disabled]="session.status === 'ACTIVE' || session.status === 'CLOSED'"
@@ -27,7 +27,7 @@
 
         <!-- PAUSE -->
         <p-button 
-          label="PAUSE SESSION" 
+          label="PAUSAR SESIÓN" 
           icon="pi pi-pause" 
           severity="warn" 
           [disabled]="session.status !== 'ACTIVE'"
@@ -36,7 +36,7 @@
 
         <!-- CLOSE -->
         <p-button 
-          label="CLOSE SESSION" 
+          label="CERRAR SESIÓN" 
           icon="pi pi-stop" 
           severity="danger" 
           [disabled]="session.status === 'CLOSED' || session.status === 'PENDING'"

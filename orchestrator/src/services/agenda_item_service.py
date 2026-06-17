@@ -17,7 +17,7 @@ async def get_agenda_item(
     item = await agenda_item_repository.get_by_id(db, item_id)
 
     if item is None or item.deleted_at is not None:
-        raise ValueError("Agenda item not found.")
+        raise ValueError("Tema de agenda no encontrado.")
 
     return item
 
@@ -46,7 +46,7 @@ async def update_agenda_item(
     item = await agenda_item_repository.get_by_id(db, item_id)
 
     if item is None or item.deleted_at is not None:
-        raise ValueError("Agenda item not found.")
+        raise ValueError("Tema de agenda no encontrado.")
 
     for field, value in update_data.items():
         setattr(item, field, value)
@@ -61,7 +61,7 @@ async def soft_delete_agenda_item(
     item = await agenda_item_repository.get_by_id(db, item_id)
 
     if item is None or item.deleted_at is not None:
-        raise ValueError("Agenda item not found.")
+        raise ValueError("Tema de agenda no encontrado.")
 
     item.deleted_at = datetime.now(timezone.utc)
     await db.flush()

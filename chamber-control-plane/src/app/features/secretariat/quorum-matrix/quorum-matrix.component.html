@@ -1,20 +1,20 @@
 <p-toast></p-toast>
 
 <div class="mb-4">
-  <h2 class="text-2xl font-bold mb-2">Quorum Matrix</h2>
-  <p class="text-slate-600">The legal attendance ledger. Changes instantly synchronize with the mathematical quorum denominator.</p>
+  <h2 class="text-2xl font-bold mb-2">Matriz de Quórum</h2>
+  <p class="text-slate-600">El libro de asistencia legal. Los cambios se sincronizan instantáneamente con el denominador matemático de quórum.</p>
 </div>
 
 <p-message *ngIf="isVotingOpen()" severity="warn" styleClass="w-full mb-4">
-  ATTENDANCE LOCKED: A voting round is currently in progress. Quorum modifications are legally suspended until the round is closed.
+  ASISTENCIA BLOQUEADA: Una votación está en progreso. Las modificaciones de quórum están legalmente suspendidas hasta que se cierre la votación.
 </p-message>
 
 <p-table [value]="attendanceList" [loading]="isLoading" styleClass="p-datatable-striped border border-slate-200">
   <ng-template pTemplate="header">
     <tr>
-      <th>Legislator Name</th>
-      <th>National ID</th>
-      <th style="width: 250px; text-align: center;">Status</th>
+      <th>Nombre del Legislador</th>
+      <th>DNI</th>
+      <th style="width: 250px; text-align: center;">Estado</th>
     </tr>
   </ng-template>
   <ng-template pTemplate="body" let-record>
@@ -34,7 +34,7 @@
   <ng-template pTemplate="emptymessage">
     <tr>
       <td colspan="3" class="text-center py-8 text-slate-500">
-        No attendance records found. Is the session active?
+        No se encontraron registros de asistencia. ¿Está la sesión activa?
       </td>
     </tr>
   </ng-template>

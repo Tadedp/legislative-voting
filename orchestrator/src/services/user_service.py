@@ -15,7 +15,7 @@ async def get_user(db: AsyncSession, user_id: uuid.UUID) -> SystemUser:
     user = await user_repository.get_by_id(db, user_id)
 
     if user is None or user.deleted_at is not None:
-        raise ValueError("User not found.")
+        raise ValueError("Usuario no encontrado.")
 
     return user
 
@@ -28,7 +28,7 @@ async def create_user(
 ) -> SystemUser:
     existing = await user_repository.get_by_username(db, username)
     if existing is not None:
-        raise ValueError(f"Username '{username}' is already taken.")
+        raise ValueError(f"El usuario '{username}' ya está en uso.")
 
     password_hash = bcrypt.hashpw(
         password.encode("utf-8"),
@@ -52,7 +52,7 @@ async def update_user(
     user = await user_repository.get_by_id(db, user_id)
 
     if user is None or user.deleted_at is not None:
-        raise ValueError("User not found.")
+        raise ValueError("Usuario no encontrado.")
 
     if "password" in update_data:
         raw_password = update_data.pop("password")
@@ -81,7 +81,7 @@ async def soft_delete_user(db: AsyncSession, user_id: uuid.UUID) -> SystemUser:
     user = await user_repository.get_by_id(db, user_id)
 
     if user is None or user.deleted_at is not None:
-        raise ValueError("User not found.")
+        raise ValueError("Usuario no encontrado.")
 
     user.deleted_at = datetime.now(timezone.utc)
     await db.flush()

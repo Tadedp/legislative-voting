@@ -26,9 +26,9 @@ export class AdminShellComponent implements OnInit, OnDestroy {
   clockInterval: any;
 
   items: MenuItem[] = [
-    { label: 'Enrollment', icon: 'pi pi-user-plus', routerLink: ['/admin/enrollment'] },
-    { label: 'Device Management', icon: 'pi pi-tablet', routerLink: ['/admin/devices'] },
-    { label: 'System Users', icon: 'pi pi-user-edit' }
+    { label: 'Aprovisionamiento', icon: 'pi pi-user-plus', routerLink: ['/admin/enrollment'] },
+    { label: 'Gestión de Terminales', icon: 'pi pi-tablet', routerLink: ['/admin/devices'] },
+    { label: 'Usuarios del Sistema', icon: 'pi pi-user-edit' }
   ];
 
   ngOnInit() {

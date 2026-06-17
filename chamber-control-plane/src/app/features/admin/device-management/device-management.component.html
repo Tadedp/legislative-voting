@@ -3,20 +3,20 @@
 
 <div class="mb-4 flex justify-between items-end">
   <div>
-    <h2 class="text-2xl font-bold mb-2">Device Management</h2>
-    <p class="text-slate-600">Monitor and manage cryptographically enrolled edge devices.</p>
+    <h2 class="text-2xl font-bold mb-2">Gestión de Terminales</h2>
+    <p class="text-slate-600">Monitoree y gestione las terminales aprovisionadas criptográficamente.</p>
   </div>
-  <p-button icon="pi pi-refresh" label="Refresh" (onClick)="loadLegislators()" [loading]="isLoading"></p-button>
+  <p-button icon="pi pi-refresh" label="Actualizar" (onClick)="loadLegislators()" [loading]="isLoading"></p-button>
 </div>
 
 <p-table [value]="legislators" [loading]="isLoading" styleClass="p-datatable-striped border border-slate-200">
   <ng-template pTemplate="header">
     <tr>
-      <th>Full Name</th>
-      <th>National ID</th>
-      <th>Hardware ID</th>
-      <th>Enrolled At</th>
-      <th style="width: 100px; text-align: center;">Actions</th>
+      <th>Nombre Completo</th>
+      <th>DNI</th>
+      <th>Huella de Hardware</th>
+      <th>Aprovisionado El</th>
+      <th style="width: 100px; text-align: center;">Acciones</th>
     </tr>
   </ng-template>
   <ng-template pTemplate="body" let-legislator>
@@ -24,7 +24,7 @@
       <td class="font-semibold">{{ legislator.full_name }}</td>
       <td>{{ legislator.national_id }}</td>
       <td class="font-mono text-sm text-slate-500">
-        {{ legislator.device ? legislator.device.hardware_id : 'No Device' }}
+        {{ legislator.device ? legislator.device.hardware_id : 'Sin Terminal' }}
       </td>
       <td>{{ legislator.enrolled_at | date:'short' }}</td>
       <td style="text-align: center;">
@@ -34,7 +34,7 @@
           severity="info" 
           [rounded]="true" 
           [text]="true" 
-          title="Regenerate Provisioning Token"
+          title="Regenerar Token de Aprovisionamiento"
           (onClick)="regenerateToken(legislator.id)">
         </p-button>
         <p-button 
@@ -43,7 +43,7 @@
           severity="danger" 
           [rounded]="true" 
           [text]="true" 
-          title="Wipe Device"
+          title="Desvincular Terminal"
           (onClick)="confirmWipe($event, legislator.device.id)">
         </p-button>
       </td>
@@ -51,26 +51,26 @@
   </ng-template>
   <ng-template pTemplate="emptymessage">
     <tr>
-      <td colspan="5" class="text-center py-8 text-slate-500">No legislators found.</td>
+      <td colspan="5" class="text-center py-8 text-slate-500">No se encontraron legisladores.</td>
     </tr>
   </ng-template>
 </p-table>
 
 <p-dialog 
-  header="Token Generated" 
+  header="Token Generado" 
   [(visible)]="showTokenDialog" 
   [modal]="true" 
   [closable]="false" 
   [style]="{width: '500px'}" 
   styleClass="p-fluid">
   
-  <p class="mb-4">Please use this One-Time Provisioning Token (OTPT) on the edge tablet to securely enroll the device.</p>
+  <p class="mb-4">Por favor, utilice este Token de Aprovisionamiento Único (OTPT) en la terminal para aprovisionarla de forma segura.</p>
   
   <div class="p-3 bg-slate-100 border border-slate-300 rounded font-mono text-lg text-center font-bold break-all mb-4 text-slate-900">
     {{ generatedToken }}
   </div>
 
   <ng-template pTemplate="footer">
-    <p-button label="Close & Acknowledge" icon="pi pi-check" (onClick)="closeTokenDialog()"></p-button>
+    <p-button label="Cerrar y Confirmar" icon="pi pi-check" (onClick)="closeTokenDialog()"></p-button>
   </ng-template>
 </p-dialog>

@@ -28,10 +28,10 @@ async def enroll_device(
     now = datetime.now(timezone.utc)
     
     if legislator is None or legislator.deleted_at is not None:
-        raise PermissionError("Invalid provisioning token.")
+        raise PermissionError("Token de aprovisionamiento inválido.")
         
     if legislator.provisioning_token_expires_at and now > legislator.provisioning_token_expires_at:
-        raise PermissionError("Provisioning token expired.")
+        raise PermissionError("Token de aprovisionamiento expirado.")
 
     # 2. Biometric Check
     identity_ok = await renaper_client.verify_identity(legislator.national_id, biometric_payload)
@@ -41,12 +41,12 @@ async def enroll_device(
         legislator.provisioning_token_expires_at = None
         legislator.provisioning_token_generated_at = None
         await db.flush()
-        raise PermissionError("Identity verification failed.")
+        raise PermissionError("Fallo en la verificación de identidad biométrica.")
 
     # 3. Hardware Fingerprint Check
     computed_fingerprint = compute_hardware_fingerprint(certificate_chain[0])
     if computed_fingerprint != hardware_fingerprint.lower():
-        raise ValueError("Hardware fingerprint mismatch.")
+        raise ValueError("Discrepancia en la huella de hardware.")
 
     # 4. Cryptographic Hardware Attestation Audit
     try:
@@ -54,7 +54,7 @@ async def enroll_device(
         ext_data = parse_attestation_extension(certificate_chain[0])
         validate_attestation_properties(ext_data, provisioning_token, "edu.um.voterterminal")
     except Exception as exc:
-        raise ValueError(f"Attestation failed: {str(exc)}")
+        raise ValueError(f"Fallo en la atestación: {str(exc)}")
         
     # Extract PEM for signature verification
     public_key_pem = extract_public_key_pem_from_cert(certificate_chain[0])
@@ -88,7 +88,7 @@ async def wipe_device(
     device = await device_repository.get_by_id(db, device_id)
 
     if device is None or device.deleted_at is not None:
-        raise ValueError("Device not found.")
+        raise ValueError("Terminal no encontrada.")
 
     old_device_token = device.device_token
 

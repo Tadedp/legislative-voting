@@ -1,3 +1,37 @@
 <resources>
     <string name="app_name">Voter Terminal</string>
+    <string name="provisioning_title">Aprovisionamiento de Terminal</string>
+    <string name="provisioning_subtitle">Ingrese el Token de Aprovisionamiento (OTPT) proporcionado por el Administrador.</string>
+    <string name="provisioning_token_label">Token de Aprovisionamiento</string>
+    <string name="proceed_facial_capture">Continuar a Captura Facial</string>
+    <string name="back">Atrás</string>
+    <string name="capture_provision">Capturar y Aprovisionar</string>
+    <string name="camera_permission_required">Se requiere permiso de cámara para la captura facial.</string>
+    <string name="grant_permission">Otorgar Permiso</string>
+    <string name="waiting_next_motion">Esperando Próxima Moción</string>
+    <string name="waiting_motion_subtitle">La presidencia aún no ha abierto una moción para votar. Por favor aguarde.</string>
+    <string name="in_debate_waiting_voting">EN DEBATE - AGUARDANDO VOTACIÓN</string>
+    <string name="device_revoked">TERMINAL REVOCADA</string>
+    <string name="device_revoked_subtitle">Esta terminal ha sido desvinculada permanentemente por el Orquestador. Todo el material seguro ha sido borrado.</string>
+    <string name="motion_tied">Moción Empatada</string>
+    <string name="motion_tied_subtitle">Moción Empatada. Aguardando Desempate Presidencial.</string>
+    <string name="tie_detected">EMPATE DETECTADO: Emita Voto Desempate</string>
+    <string name="voting_general">VOTACIÓN EN GENERAL</string>
+    <string name="voting_specific">VOTACIÓN EN PARTICULAR</string>
+    <string name="motion">MOCIÓN</string>
+    <string name="affirmative">AFIRMATIVO</string>
+    <string name="negative">NEGATIVO</string>
+    <string name="tie_vote_registered">Voto de Desempate Registrado Exitosamente</string>
+    <string name="voting_info">Información de la Votación</string>
+    <string name="voting_nominal">Votación Nominal</string>
+    <string name="voting_secret">Votación Secreta</string>
+    <string name="modality">• Modalidad: %1$s</string>
+    <string name="allowed">Permitidas</string>
+    <string name="not_allowed">No permitidas</string>
+    <string name="abstentions_status">• Abstenciones: %1$s</string>
+    <string name="time_remaining">TIEMPO RESTANTE: %1$d</string>
+    <string name="president_waiting">Presidente: Voto ordinario no requerido. Aguardando resultado del recinto.</string>
+    <string name="abstain">ABSTENERSE</string>
+    <string name="vote_registered">Voto Registrado Exitosamente</string>
+    <string name="identity_verification_failed">Verificación de identidad fallida. El token de aprovisionamiento ha sido consumido. Por favor, solicite un nuevo token al Administrador.</string>
 </resources>

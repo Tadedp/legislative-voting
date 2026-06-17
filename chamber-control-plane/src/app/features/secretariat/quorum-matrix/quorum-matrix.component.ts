@@ -29,8 +29,8 @@ export class QuorumMatrixComponent {
   isLoading = false;
 
   statusOptions = [
-    { label: 'Present', value: 'PRESENT' },
-    { label: 'Absent', value: 'ABSENT' }
+    { label: 'Presente', value: 'PRESENT' },
+    { label: 'Ausente', value: 'ABSENT' }
   ];
 
   constructor() {
@@ -54,7 +54,7 @@ export class QuorumMatrixComponent {
       },
       error: (err) => {
         this.isLoading = false;
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not load quorum matrix.' });
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo cargar la matriz de quórum.' });
       }
     });
   }
@@ -72,12 +72,12 @@ export class QuorumMatrixComponent {
       next: () => {
         this.messageService.add({ 
           severity: 'success', 
-          summary: 'Attendance Updated', 
-          detail: `${record.full_name} marked as ${record.status}` 
+          summary: 'Asistencia Actualizada', 
+          detail: `${record.full_name} marcado como ${record.status}` 
         });
       },
       error: (err) => {
-        this.messageService.add({ severity: 'error', summary: 'Update Failed', detail: 'Could not update attendance status.' });
+        this.messageService.add({ severity: 'error', summary: 'Fallo al Actualizar', detail: 'No se pudo actualizar el estado de asistencia.' });
         // Revert the local change
         this.loadAttendance(session.id);
       }

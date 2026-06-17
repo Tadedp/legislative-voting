@@ -29,8 +29,8 @@ export class SessionControlComponent {
     if (newStatus === 'CLOSED') {
       this.confirmationService.confirm({
         target: event.target as EventTarget,
-        message: 'Are you sure you want to officially CLOSE the legislative session? This action cannot be undone.',
-        header: 'Confirm Session Closure',
+        message: '¿Está seguro de que desea CERRAR oficialmente la sesión legislativa? Esta acción no se puede deshacer.',
+        header: 'Confirmar Cierre de Sesión',
         icon: 'pi pi-exclamation-triangle',
         acceptButtonStyleClass: 'p-button-danger',
         rejectButtonStyleClass: 'p-button-text',
@@ -44,10 +44,10 @@ export class SessionControlComponent {
   private executeStatusChange(sessionId: string, newStatus: SessionStatus) {
     this.presidencyService.updateSessionStatus(sessionId, newStatus).subscribe({
       next: () => {
-        this.messageService.add({ severity: 'info', summary: 'Requested', detail: `Requested session transition to ${newStatus}.` });
+        this.messageService.add({ severity: 'info', summary: 'Solicitado', detail: `Se solicitó la transición de sesión a ${newStatus}.` });
       },
       error: (err) => {
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not change session status.' });
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo cambiar el estado de la sesión.' });
       }
     });
   }

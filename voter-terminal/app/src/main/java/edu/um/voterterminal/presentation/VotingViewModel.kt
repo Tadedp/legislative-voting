@@ -14,6 +14,7 @@ import edu.um.voterterminal.data.network.NominalVoteRequest
 import edu.um.voterterminal.data.network.NonNominalVoteRequest
 import edu.um.voterterminal.data.network.OrchestratorClient
 import edu.um.voterterminal.domain.SessionManager
+import edu.um.voterterminal.R
 import edu.um.voterterminal.security.BiometricSigner
 import edu.um.voterterminal.security.EncryptionUtils
 import edu.um.voterterminal.security.KeyStoreManager
@@ -197,7 +198,7 @@ class VotingViewModel @Inject constructor(
                 startKeepAliveService()
             } catch (e: IllegalStateException) {
                 if (e.message == "HTTP 403") {
-                    _provisioningError.value = "Identity verification failed. The provisioning token has been consumed. Please request a new token from the Administrator."
+                    _provisioningError.value = context.getString(R.string.identity_verification_failed)
                 } else {
                     _provisioningError.value = e.message
                     e.printStackTrace()

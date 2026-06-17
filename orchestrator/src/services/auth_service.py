@@ -24,13 +24,13 @@ async def authenticate_user(
     user = result.scalar_one_or_none()
 
     if user is None:
-        raise ValueError("Invalid username or password.")
+        raise ValueError("Usuario o contraseña inválidos.")
 
     if not bcrypt.checkpw(
         password.encode("utf-8"),
         user.password_hash.encode("utf-8"),
     ):
-        raise ValueError("Invalid username or password.")
+        raise ValueError("Usuario o contraseña inválidos.")
 
     return user
 

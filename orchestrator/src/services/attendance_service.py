@@ -13,7 +13,7 @@ async def get_attendance_by_session(
 ) -> list[SessionAttendance]:
     session = await legislative_session_repository.get_by_id(db, session_id)
     if session is None:
-        raise ValueError("Legislative session not found.")
+        raise ValueError("Sesión legislativa no encontrada.")
 
     stmt = select(SessionAttendance).where(
         SessionAttendance.legislative_session_id == session_id,
@@ -27,7 +27,7 @@ async def get_enriched_attendance_by_session(
 ) -> list[dict[str, uuid.UUID | AttendanceStatus | str]]:
     session = await legislative_session_repository.get_by_id(db, session_id)
     if session is None:
-        raise ValueError("Legislative session not found.")
+        raise ValueError("Sesión legislativa no encontrada.")
 
     stmt = (
         select(SessionAttendance, Legislator.full_name, Legislator.national_id)
@@ -55,7 +55,7 @@ async def bulk_update_attendance(
 ) -> list[SessionAttendance]:
     session = await legislative_session_repository.get_by_id(db, session_id)
     if session is None:
-        raise ValueError("Legislative session not found.")
+        raise ValueError("Sesión legislativa no encontrada.")
 
     # Get existing records
     existing_records = await get_attendance_by_session(db, session_id)

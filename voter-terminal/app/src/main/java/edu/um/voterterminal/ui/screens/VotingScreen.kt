@@ -26,9 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import edu.um.voterterminal.R
 import edu.um.voterterminal.presentation.VotingState
 
 // -- Stage Badge Color Palette --
@@ -44,10 +46,11 @@ private val BadgeMotionColor = Color(0xFF00838F)
  * - "GENERAL" → "VOTACIÓN EN GENERAL"
  * - "SPECIFIC" → "VOTACIÓN EN PARTICULAR"
  */
+@Composable
 private fun stageBadgeLabel(stage: String): String = when (stage) {
-    "GENERAL" -> "VOTACIÓN EN GENERAL"
-    "SPECIFIC" -> "VOTACIÓN EN PARTICULAR"
-    else -> "MOCIÓN"
+    "GENERAL" -> stringResource(R.string.voting_general)
+    "SPECIFIC" -> stringResource(R.string.voting_specific)
+    else -> stringResource(R.string.motion)
 }
 
 /** Returns the badge background color based on the stage. */
@@ -160,22 +163,22 @@ fun VotingScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "Información de la Votación",
+                                text = stringResource(R.string.voting_info),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 fontWeight = FontWeight.Bold
                             )
                             
-                            val tipoVotoText = if (state.isNominal) "Votación Nominal" else "Votación Secreta"
+                            val tipoVotoText = if (state.isNominal) stringResource(R.string.voting_nominal) else stringResource(R.string.voting_secret)
                             Text(
-                                text = "• Modalidad: $tipoVotoText",
+                                text = stringResource(R.string.modality, tipoVotoText),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
 
-                            val abstencionesText = if (state.allowsAbstentions) "Permitidas" else "No permitidas"
+                            val abstencionesText = if (state.allowsAbstentions) stringResource(R.string.allowed) else stringResource(R.string.not_allowed)
                             Text(
-                                text = "• Abstenciones: $abstencionesText",
+                                text = stringResource(R.string.abstentions_status, abstencionesText),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
@@ -185,7 +188,7 @@ fun VotingScreen(
                     if (remainingTimeSeconds != null) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "TIEMPO RESTANTE: $remainingTimeSeconds",
+                            text = stringResource(R.string.time_remaining, remainingTimeSeconds),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Black,
                             color = if (remainingTimeSeconds <= 10) Color.Red else MaterialTheme.colorScheme.error,
@@ -208,7 +211,7 @@ fun VotingScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        text = "Presiding Officer: Ordinary vote not required. Awaiting chamber result.",
+                        text = stringResource(R.string.president_waiting),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -237,7 +240,7 @@ fun VotingScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), // Green
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("AFIRMATIVO", style = MaterialTheme.typography.titleLarge)
+                            Text(stringResource(R.string.affirmative), style = MaterialTheme.typography.titleLarge)
                         }
 
                         Button(
@@ -249,7 +252,7 @@ fun VotingScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)), // Red
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("NEGATIVO", style = MaterialTheme.typography.titleLarge)
+                            Text(stringResource(R.string.negative), style = MaterialTheme.typography.titleLarge)
                         }
                     }
 
@@ -263,7 +266,7 @@ fun VotingScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF9A825)), // Yellow
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("ABSTENERSE", style = MaterialTheme.typography.titleLarge)
+                            Text(stringResource(R.string.abstain), style = MaterialTheme.typography.titleLarge)
                         }
                     }
                 }
@@ -284,7 +287,7 @@ fun VotingScreen(
                     tonalElevation = 8.dp
                 ) {
                     Text(
-                        text = "Voto Registrado Exitosamente",
+                        text = stringResource(R.string.vote_registered),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,

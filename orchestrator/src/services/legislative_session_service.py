@@ -23,7 +23,7 @@ async def get_legislative_session(
     session = await legislative_session_repository.get_by_id(db, session_id)
 
     if session is None or session.deleted_at is not None:
-        raise ValueError("Legislative session not found.")
+        raise ValueError("Sesión legislativa no encontrada.")
 
     return session
 
@@ -52,12 +52,12 @@ async def update_legislative_session(
     session = await legislative_session_repository.get_by_id(db, session_id)
 
     if session is None or session.deleted_at is not None:
-        raise ValueError("Legislative session not found.")
+        raise ValueError("Sesión legislativa no encontrada.")
 
     if session.status != LegSessionStatus.PENDING:
         raise ValueError(
-            "Cannot update session: only sessions with status "
-            "'PENDING' can be modified.",
+            "No se puede actualizar la sesión: solo las sesiones en estado "
+            "'PENDING' pueden ser modificadas.",
         )
 
     for field, value in update_data.items():
@@ -73,12 +73,12 @@ async def soft_delete_legislative_session(
     session = await legislative_session_repository.get_by_id(db, session_id)
 
     if session is None or session.deleted_at is not None:
-        raise ValueError("Legislative session not found.")
+        raise ValueError("Sesión legislativa no encontrada.")
 
     if session.status != LegSessionStatus.PENDING:
         raise ValueError(
-            "Cannot delete session: only sessions with status "
-            "'PENDING' can be deleted.",
+            "No se puede eliminar la sesión: solo las sesiones en estado "
+            "'PENDING' pueden ser eliminadas.",
         )
 
     session.deleted_at = datetime.now(timezone.utc)
@@ -94,7 +94,7 @@ async def set_ephemeral_key(
     session = await legislative_session_repository.get_by_id(db, session_id)
 
     if session is None or session.deleted_at is not None:
-        raise ValueError("Legislative session not found.")
+        raise ValueError("Sesión legislativa no encontrada.")
 
     session.ephemeral_public_key = ephemeral_public_key
     await db.flush()
@@ -109,7 +109,7 @@ async def update_legislative_session_status(
     session = await legislative_session_repository.get_by_id(db, session_id)
 
     if session is None or session.deleted_at is not None:
-        raise ValueError("Legislative session not found.")
+        raise ValueError("Sesión legislativa no encontrada.")
 
     now = datetime.now(timezone.utc)
 
@@ -123,8 +123,8 @@ async def update_legislative_session_status(
 
         if quorum_present < quorum_minimum:
             raise ValueError(
-                f"No quorum: {quorum_present} legislators legally present, "
-                f"{quorum_minimum} required (out of {total_members} total).",
+                f"Sin quórum: {quorum_present} legisladores presentes, "
+                f"se requieren {quorum_minimum} (de un total de {total_members}).",
             )
 
         if session.opened_at is None:
@@ -143,7 +143,7 @@ async def get_current_legislative_session(
     session = await legislative_session_repository.get_current_active(db)
 
     if session is None:
-        raise ValueError("No active legislative session.")
+        raise ValueError("No hay ninguna sesión legislativa activa.")
 
     active_round = await voting_round_repository.get_open_round_in_session(
         db, session.id,

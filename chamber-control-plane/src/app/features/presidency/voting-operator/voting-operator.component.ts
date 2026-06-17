@@ -45,9 +45,9 @@ export class VotingOperatorComponent {
   votingTypes: VotingType[] = [];
   
   stageOptions = [
-    { label: 'Single', value: 'SINGLE' },
-    { label: 'General', value: 'GENERAL' },
-    { label: 'Specific', value: 'SPECIFIC' }
+    { label: 'Única', value: 'SINGLE' },
+    { label: 'En General', value: 'GENERAL' },
+    { label: 'En Particular', value: 'SPECIFIC' }
   ];
 
   isCreating = false;
@@ -81,14 +81,14 @@ export class VotingOperatorComponent {
       switchMap(round => this.presidencyService.getRoundTally(round!.id))
     ).subscribe({
       next: (tally) => this.currentTally.set(tally),
-      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not fetch tally.' })
+      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo obtener el escrutinio.' })
     });
   }
 
   loadVotingTypes() {
     this.presidencyService.getVotingTypes().subscribe({
       next: (types) => this.votingTypes = types,
-      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load voting types.' })
+      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Fallo al cargar tipos de votación.' })
     });
   }
 
@@ -99,7 +99,7 @@ export class VotingOperatorComponent {
     const session = this.stateSync.sessionState();
     const activeItem = this.stateSync.activeItem();
     if (!session || !activeItem) {
-      this.messageService.add({ severity: 'warn', summary: 'Missing Context', detail: 'An active session and agenda item are required.' });
+      this.messageService.add({ severity: 'warn', summary: 'Contexto Faltante', detail: 'Se requiere una sesión activa y un tema de agenda.' });
       return;
     }
 
@@ -115,14 +115,14 @@ export class VotingOperatorComponent {
     ).subscribe({
       next: () => {
         this.isCreating = false;
-        this.messageService.add({ severity: 'success', summary: 'Voting Opened', detail: 'The round is now active on the floor.' });
+        this.messageService.add({ severity: 'success', summary: 'Votación Abierta', detail: 'La votación está activa en el recinto.' });
         this.createForm.reset({ stage: 'SINGLE', is_nominal: true, president_votes_ordinarily: false });
       },
       error: (err) => {
         this.isCreating = false;
         // Use backend error message if available
-        const detail = err.error?.detail || 'Could not initiate voting round.';
-        this.messageService.add({ severity: 'error', summary: 'Operation Failed', detail });
+        const detail = err.error?.detail || 'No se pudo iniciar la votación.';
+        this.messageService.add({ severity: 'error', summary: 'Operación Fallida', detail });
       }
     });
   }
@@ -134,8 +134,8 @@ export class VotingOperatorComponent {
 
     this.confirmationService.confirm({
       target: event.target as EventTarget,
-      message: 'Are you sure you want to close the voting round?',
-      header: 'Close Voting',
+      message: '¿Está seguro de que desea cerrar la votación?',
+      header: 'Cerrar Votación',
       icon: 'pi pi-exclamation-triangle',
       acceptButtonStyleClass: 'p-button-warning',
       rejectButtonStyleClass: 'p-button-text',
@@ -143,9 +143,9 @@ export class VotingOperatorComponent {
         this.presidencyService.closeVotingRound(round.id).subscribe({
           next: () => {
              // UI purely waits for WebSocket VOTING_ROUND_CLOSED
-             this.messageService.add({ severity: 'info', summary: 'Closing', detail: 'Signaling edge devices to lock...' });
+             this.messageService.add({ severity: 'info', summary: 'Cerrando', detail: 'Señalizando el bloqueo a las terminales...' });
           },
-          error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not close the round.' })
+          error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo cerrar la votación.' })
         });
       }
     });
@@ -159,8 +159,8 @@ export class VotingOperatorComponent {
 
     this.confirmationService.confirm({
       target: event.target as EventTarget,
-      message: 'Are you sure you want to proclaim this result? It will be permanently recorded.',
-      header: 'Proclaim Result',
+      message: '¿Está seguro de que desea proclamar este resultado? Quedará registrado permanentemente.',
+      header: 'Proclamar Resultado',
       icon: 'pi pi-check-circle',
       acceptButtonStyleClass: 'p-button-success',
       rejectButtonStyleClass: 'p-button-text',
@@ -173,10 +173,10 @@ export class VotingOperatorComponent {
 
         this.presidencyService.proclaimVotingRound(round.id, payload).subscribe({
           next: () => {
-            this.messageService.add({ severity: 'success', summary: 'Proclaimed', detail: 'The vote has been legally cemented.' });
+            this.messageService.add({ severity: 'success', summary: 'Proclamado', detail: 'El voto ha sido cimentado legalmente.' });
             this.currentTally.set(null); // Clear local tally
           },
-          error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not proclaim round.' })
+          error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo proclamar la votación.' })
         });
       }
     });
@@ -188,18 +188,18 @@ export class VotingOperatorComponent {
 
     this.confirmationService.confirm({
       target: event.target as EventTarget,
-      message: 'Are you sure you want to VOID this round? A new draft round will be cloned.',
-      header: 'Rectify / Abort Voting',
+      message: '¿Está seguro de que desea ANULAR esta votación? Se clonará un nuevo borrador.',
+      header: 'Rectificar / Anular Votación',
       icon: 'pi pi-exclamation-triangle',
       acceptButtonStyleClass: 'p-button-danger',
       rejectButtonStyleClass: 'p-button-text',
       accept: () => {
         this.presidencyService.rectifyVotingRound(round.id).subscribe({
           next: () => {
-            this.messageService.add({ severity: 'warn', summary: 'Rectified', detail: 'Round voided successfully.' });
+            this.messageService.add({ severity: 'warn', summary: 'Rectificado', detail: 'Votación anulada exitosamente.' });
             this.currentTally.set(null);
           },
-          error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Could not rectify round.' })
+          error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo rectificar la votación.' })
         });
       }
     });

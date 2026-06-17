@@ -18,7 +18,7 @@ async def get_legislator(
     legislator = await legislator_repository.get_by_id(db, legislator_id)
 
     if legislator is None or legislator.deleted_at is not None:
-        raise ValueError("Legislator not found.")
+        raise ValueError("Legislador no encontrado.")
 
     return legislator
 
@@ -31,7 +31,7 @@ async def create_legislator(
     existing = await legislator_repository.get_by_national_id(db, national_id)
     if existing is not None:
         raise ValueError(
-            f"Legislator with national_id '{national_id}' already exists.",
+            f"El legislador con DNI '{national_id}' ya existe.",
         )
 
     now = datetime.now(timezone.utc)
@@ -54,7 +54,7 @@ async def regenerate_provisioning_token(
 ) -> Legislator:
     legislator = await legislator_repository.get_by_id(db, legislator_id)
     if legislator is None or legislator.deleted_at is not None:
-        raise ValueError("Legislator not found.")
+        raise ValueError("Legislador no encontrado.")
         
     now = datetime.now(timezone.utc)
     
@@ -75,7 +75,7 @@ async def update_legislator(
     legislator = await legislator_repository.get_by_id(db, legislator_id)
 
     if legislator is None or legislator.deleted_at is not None:
-        raise ValueError("Legislator not found.")
+        raise ValueError("Legislador no encontrado.")
 
     if (
         "national_id" in update_data
@@ -86,7 +86,7 @@ async def update_legislator(
         )
         if existing is not None:
             raise ValueError(
-                f"National ID '{update_data['national_id']}' is already registered.",
+                f"El DNI '{update_data['national_id']}' ya está registrado.",
             )
 
     for field, value in update_data.items():
@@ -103,7 +103,7 @@ async def soft_delete_legislator(
     legislator = await legislator_repository.get_by_id(db, legislator_id)
 
     if legislator is None or legislator.deleted_at is not None:
-        raise ValueError("Legislator not found.")
+        raise ValueError("Legislador no encontrado.")
 
     now = datetime.now(timezone.utc)
         

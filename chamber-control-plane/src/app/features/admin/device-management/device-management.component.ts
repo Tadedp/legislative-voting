@@ -41,7 +41,7 @@ export class DeviceManagementComponent implements OnInit {
       },
       error: (err) => {
         this.isLoading = false;
-        this.messageService.add({ severity: 'error', summary: 'Data Fetch Error', detail: 'Could not load legislators data.' });
+        this.messageService.add({ severity: 'error', summary: 'Error de Carga', detail: 'No se pudieron cargar los datos de los legisladores.' });
       }
     });
   }
@@ -57,7 +57,7 @@ export class DeviceManagementComponent implements OnInit {
       },
       error: (err) => {
         this.isLoading = false;
-        this.messageService.add({ severity: 'error', summary: 'Regeneration Failed', detail: err.error?.detail || 'Failed to regenerate token.' });
+        this.messageService.add({ severity: 'error', summary: 'Fallo en Regeneración', detail: err.error?.detail || 'Fallo al regenerar el token.' });
       }
     });
   }
@@ -70,8 +70,8 @@ export class DeviceManagementComponent implements OnInit {
   confirmWipe(event: Event, deviceId: string) {
     this.confirmationService.confirm({
       target: event.target as EventTarget,
-      message: 'CRITICAL WARNING: This will permanently revoke the device token and cryptographically purge the tablet. The legislator will be unable to vote. Proceed?',
-      header: 'Confirm Device Wipe',
+      message: 'ADVERTENCIA CRÍTICA: Esto revocará permanentemente el token de la terminal y la purgará criptográficamente. El legislador no podrá votar. ¿Proceder?',
+      header: 'Confirmar Desvinculación de Terminal',
       icon: 'pi pi-exclamation-triangle',
       acceptIcon: "none",
       rejectIcon: "none",
@@ -86,11 +86,11 @@ export class DeviceManagementComponent implements OnInit {
   private wipeDevice(deviceId: string) {
     this.adminService.wipeDevice(deviceId).subscribe({
       next: () => {
-        this.messageService.add({ severity: 'success', summary: 'Device Wiped', detail: 'The hardware token has been revoked.' });
+        this.messageService.add({ severity: 'success', summary: 'Terminal Desvinculada', detail: 'El token de hardware ha sido revocado.' });
         this.loadLegislators();
       },
       error: (err) => {
-        this.messageService.add({ severity: 'error', summary: 'Wipe Failed', detail: err.error?.detail || 'Failed to wipe the device.' });
+        this.messageService.add({ severity: 'error', summary: 'Fallo al Desvincular', detail: err.error?.detail || 'Fallo al desvincular la terminal.' });
       }
     });
   }

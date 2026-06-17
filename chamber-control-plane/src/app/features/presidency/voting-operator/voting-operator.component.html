@@ -1,38 +1,38 @@
 <div class="voting-operator-container">
   <!-- Top Context Panel -->
   <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 mb-6">
-    <h3 class="text-lg font-bold text-slate-800 mb-2">Subject on the Floor</h3>
+    <h3 class="text-lg font-bold text-slate-800 mb-2">Tema en Tratamiento</h3>
     @if (stateSync.activeItem(); as item) {
       <div class="flex items-center gap-4">
         <span class="px-2 py-1 bg-slate-100 rounded text-sm font-semibold">{{ item.file_number || item.category }}</span>
         <span class="text-slate-700 font-medium">{{ item.title }}</span>
       </div>
     } @else {
-      <p class="text-slate-500 italic">No subject is currently active. The Secretariat must send an item to the floor.</p>
+      <p class="text-slate-500 italic">No hay ningún tema activo. La Secretaría debe enviar un tema a tratamiento.</p>
     }
   </div>
 
   <!-- STATE 0: CREATION -->
   @if (!hasActiveRound()) {
     <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-      <h3 class="text-lg font-bold text-slate-800 mb-4">Initialize Voting Round</h3>
+      <h3 class="text-lg font-bold text-slate-800 mb-4">Iniciar Votación</h3>
       
       <form [formGroup]="createForm" (ngSubmit)="initiateVotingRound()" class="flex flex-col gap-5">
         <div class="grid grid-cols-2 gap-5">
           <div class="field">
-            <label class="block mb-2 font-semibold text-slate-700">Stage</label>
+            <label class="block mb-2 font-semibold text-slate-700">Etapa</label>
             <p-select formControlName="stage" [options]="stageOptions" optionLabel="label" optionValue="value" styleClass="w-full"></p-select>
           </div>
           <div class="field">
-            <label class="block mb-2 font-semibold text-slate-700">Voting Ruleset</label>
-            <p-select formControlName="voting_type_id" [options]="votingTypes" optionLabel="name" optionValue="id" styleClass="w-full" placeholder="Select Ruleset"></p-select>
+            <label class="block mb-2 font-semibold text-slate-700">Reglas de Votación</label>
+            <p-select formControlName="voting_type_id" [options]="votingTypes" optionLabel="name" optionValue="id" styleClass="w-full" placeholder="Seleccionar Reglas"></p-select>
           </div>
         </div>
 
         @if (createForm.get('stage')?.value === 'SPECIFIC') {
           <div class="field">
-            <label class="block mb-2 font-semibold text-slate-700">Specific Reference</label>
-            <input type="text" pInputText formControlName="specific_reference" class="w-full" placeholder="e.g., Artículo 4" />
+            <label class="block mb-2 font-semibold text-slate-700">Referencia Específica</label>
+            <input type="text" pInputText formControlName="specific_reference" class="w-full" placeholder="Ej., Artículo 4" />
           </div>
         }
 
@@ -40,21 +40,21 @@
           <div class="field flex gap-4">
             <div class="flex items-center gap-2">
               <p-checkbox formControlName="is_nominal" [binary]="true" inputId="is_nominal"></p-checkbox>
-              <label for="is_nominal">Nominal (Public)</label>
+              <label for="is_nominal">Nominal (Pública)</label>
             </div>
             <div class="flex items-center gap-2">
               <p-checkbox formControlName="president_votes_ordinarily" [binary]="true" inputId="pres_votes"></p-checkbox>
-              <label for="pres_votes">President Votes Ordinarily</label>
+              <label for="pres_votes">Presidente Vota Ordinariamente</label>
             </div>
           </div>
           <div class="field">
-            <label class="block mb-2 font-semibold text-slate-700">Time Limit (Seconds, Optional)</label>
+            <label class="block mb-2 font-semibold text-slate-700">Límite de Tiempo (Segundos, Opcional)</label>
             <p-inputNumber formControlName="time_limit_seconds" [showButtons]="true" [min]="0" [max]="3600" styleClass="w-full"></p-inputNumber>
           </div>
         </div>
 
         <div class="flex justify-end mt-4">
-          <p-button label="OPEN VOTING" icon="pi pi-play" type="submit" size="large" severity="success" [disabled]="createForm.invalid || !stateSync.sessionState() || !stateSync.activeItem() || isCreating" [loading]="isCreating"></p-button>
+          <p-button label="ABRIR VOTACIÓN" icon="pi pi-play" type="submit" size="large" severity="success" [disabled]="createForm.invalid || !stateSync.sessionState() || !stateSync.activeItem() || isCreating" [loading]="isCreating"></p-button>
         </div>
       </form>
     </div>
@@ -64,8 +64,8 @@
   @if (roundStatus() === 'VOTING_OPEN') {
     <div class="bg-blue-50 border-2 border-blue-200 p-12 rounded-lg text-center shadow-lg">
       <i class="pi pi-spin pi-spinner text-blue-500 text-6xl mb-4"></i>
-      <h2 class="text-3xl font-bold text-blue-900 mb-2">VOTING IS OPEN</h2>
-      <p class="text-blue-700 mb-8 text-lg">Edge terminals are active. Legislators are casting their votes.</p>
+      <h2 class="text-3xl font-bold text-blue-900 mb-2">LA VOTACIÓN ESTÁ ABIERTA</h2>
+      <p class="text-blue-700 mb-8 text-lg">Las terminales están activas. Los legisladores están emitiendo sus votos.</p>
       
       <p-button label="CERRAR VOTACIÓN" icon="pi pi-lock" severity="danger" size="large" [raised]="true" styleClass="text-2xl px-8 py-4 font-bold pulse-danger" (onClick)="closeVoting($event)"></p-button>
     </div>
@@ -75,8 +75,8 @@
   @if (roundStatus() === 'VOTING_CLOSED' || roundStatus() === 'TIED') {
     <div class="bg-slate-50 p-6 rounded-lg border border-slate-300 shadow-md">
       <div class="text-center mb-8">
-        <h2 class="text-2xl font-bold text-slate-800"><i class="pi pi-lock text-slate-600 mr-2"></i> VOTING CLOSED</h2>
-        <p class="text-slate-600">The round is locked. Please read the results aloud before proclaiming.</p>
+        <h2 class="text-2xl font-bold text-slate-800"><i class="pi pi-lock text-slate-600 mr-2"></i> VOTACIÓN CERRADA</h2>
+        <p class="text-slate-600">La votación está bloqueada. Por favor, lea los resultados en voz alta antes de proclamar.</p>
       </div>
 
       <!-- Tally Display -->
@@ -84,27 +84,27 @@
         <div class="flex justify-center gap-8 mb-8">
           <div class="bg-green-100 text-green-800 p-6 rounded-lg text-center min-w-[150px]">
             <div class="text-4xl font-bold">{{ tally.affirmative }}</div>
-            <div class="font-semibold uppercase text-sm mt-2">Affirmative</div>
+            <div class="font-semibold uppercase text-sm mt-2">Afirmativo</div>
           </div>
           <div class="bg-red-100 text-red-800 p-6 rounded-lg text-center min-w-[150px]">
             <div class="text-4xl font-bold">{{ tally.negative }}</div>
-            <div class="font-semibold uppercase text-sm mt-2">Negative</div>
+            <div class="font-semibold uppercase text-sm mt-2">Negativo</div>
           </div>
           <div class="bg-slate-200 text-slate-700 p-6 rounded-lg text-center min-w-[150px]">
             <div class="text-4xl font-bold">{{ tally.abstentions }}</div>
-            <div class="font-semibold uppercase text-sm mt-2">Abstentions</div>
+            <div class="font-semibold uppercase text-sm mt-2">Abstenciones</div>
           </div>
         </div>
         
         <div class="text-center mb-8">
           <span class="px-4 py-2 bg-slate-800 text-white rounded-full font-mono text-lg tracking-wider">
-            SYSTEM COMPUTATION: {{ tally.suggested_result }}
+            CÁLCULO DEL SISTEMA: {{ tally.suggested_result }}
           </span>
         </div>
       } @else {
         <div class="text-center py-12">
           <i class="pi pi-spin pi-spinner text-3xl text-slate-400"></i>
-          <p class="text-slate-500 mt-2">Calculating cryptographic tally...</p>
+          <p class="text-slate-500 mt-2">Calculando escrutinio criptográfico...</p>
         </div>
       }
 
@@ -121,7 +121,7 @@
       }
 
       <div class="flex justify-center gap-6 mt-4 border-t border-slate-200 pt-6">
-        <p-button label="RECTIFICAR (ABORT)" icon="pi pi-refresh" severity="danger" [outlined]="true" size="large" (onClick)="rectifyVoting($event)"></p-button>
+        <p-button label="RECTIFICAR (ANULAR)" icon="pi pi-refresh" severity="danger" [outlined]="true" size="large" (onClick)="rectifyVoting($event)"></p-button>
         <!-- Proclaim is hidden/disabled if TIED -->
         @if (roundStatus() !== 'TIED') {
           <p-button label="PROCLAMAR" icon="pi pi-check-circle" severity="success" size="large" (onClick)="proclaimVoting($event)" [disabled]="!currentTally()"></p-button>

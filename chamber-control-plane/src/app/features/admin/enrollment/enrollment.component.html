@@ -1,6 +1,6 @@
 <div class="mb-4">
-  <h2 class="text-2xl font-bold mb-2">Legislator & Hardware Enrollment</h2>
-  <p class="text-slate-600">Provision a new physical edge device and tie it to a legislator's identity.</p>
+  <h2 class="text-2xl font-bold mb-2">Aprovisionamiento de Legislador y Terminal</h2>
+  <p class="text-slate-600">Aprovisione una nueva terminal física y vincúlela a la identidad de un legislador.</p>
 </div>
 
 <p-message *ngIf="errorMessage" severity="error" styleClass="w-full mb-4">{{ errorMessage }}</p-message>
@@ -10,20 +10,20 @@
     
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="field">
-        <label for="full_name" class="block mb-2 font-semibold text-slate-700">Full Name</label>
-        <input id="full_name" type="text" pInputText formControlName="full_name" class="w-full" placeholder="e.g. John Doe" />
+        <label for="full_name" class="block mb-2 font-semibold text-slate-700">Nombre Completo</label>
+        <input id="full_name" type="text" pInputText formControlName="full_name" class="w-full" placeholder="Ej. Juan Pérez" />
       </div>
 
       <div class="field">
-        <label for="national_id" class="block mb-2 font-semibold text-slate-700">National ID (Numeric)</label>
-        <input id="national_id" type="text" pInputText formControlName="national_id" class="w-full" placeholder="e.g. 12345678" />
+        <label for="national_id" class="block mb-2 font-semibold text-slate-700">DNI (Numérico)</label>
+        <input id="national_id" type="text" pInputText formControlName="national_id" class="w-full" placeholder="Ej. 12345678" />
       </div>
     </div>
 
     <div class="flex justify-end mt-4">
       <p-button 
         type="submit" 
-        label="Provision Device" 
+        label="Aprovisionar Terminal" 
         icon="pi pi-check-circle" 
         severity="success"
         [loading]="isLoading"
@@ -35,20 +35,20 @@
 </p-card>
 
 <p-dialog 
-  header="Device Successfully Enrolled" 
+  header="Terminal Aprovisionada Exitosamente" 
   [(visible)]="showTokenDialog" 
   [modal]="true" 
   [closable]="false" 
   [style]="{width: '500px'}" 
   styleClass="p-fluid">
   
-  <p class="mb-4">The legislator profile has been created. Please use this One-Time Provisioning Token (OTPT) on the edge tablet to securely enroll the device.</p>
+  <p class="mb-4">El perfil del legislador ha sido creado. Por favor, utilice este Token de Aprovisionamiento Único (OTPT) en la terminal para aprovisionarla de forma segura.</p>
   
   <div class="p-3 bg-slate-100 border border-slate-300 rounded font-mono text-lg text-center font-bold break-all mb-4 text-slate-900">
     {{ generatedToken }}
   </div>
 
   <ng-template pTemplate="footer">
-    <p-button label="Close & Acknowledge" icon="pi pi-check" (onClick)="closeTokenDialog()"></p-button>
+    <p-button label="Cerrar y Confirmar" icon="pi pi-check" (onClick)="closeTokenDialog()"></p-button>
   </ng-template>
 </p-dialog>

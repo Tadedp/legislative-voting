@@ -28,9 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import edu.um.voterterminal.R
 import edu.um.voterterminal.presentation.VotingState
 
 @Composable
@@ -49,13 +51,13 @@ fun IdleScreen() {
             modifier = Modifier.padding(bottom = 24.dp)
         )
         Text(
-            text = "Esperando Próxima Moción",
+            text = stringResource(R.string.waiting_next_motion),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "La presidencia aún no ha abierto una moción para votar. Por favor aguarde.",
+            text = stringResource(R.string.waiting_motion_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,
@@ -82,7 +84,7 @@ fun DebateIdleScreen(state: VotingState.DebateIdle) {
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                text = "EN DEBATE - AGUARDANDO VOTACIÓN",
+                text = stringResource(R.string.in_debate_waiting_voting),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -140,14 +142,14 @@ fun DeviceRevokedScreen() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "DISPOSITIVO REVOCADO",
+                text = stringResource(R.string.device_revoked),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "Este terminal ha sido deshabilitado permanentemente por el Orquestador. Todo el material seguro ha sido borrado.",
+                text = stringResource(R.string.device_revoked_subtitle),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center,
@@ -178,13 +180,13 @@ fun MotionTiedIdleScreen() {
             modifier = Modifier.padding(bottom = 24.dp)
         )
         Text(
-            text = "Moción Empatada",
+            text = stringResource(R.string.motion_tied),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "Moción Empatada. Aguardando Desempate Presidencial.",
+            text = stringResource(R.string.motion_tied_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,
@@ -240,7 +242,7 @@ fun TieBreakerScreen(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "EMPATE DETECTADO: Emita Voto de Desempate",
+                    text = stringResource(R.string.tie_detected),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = TieBreakerOnGold,
@@ -268,9 +270,9 @@ fun TieBreakerScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     val badgeLabel = when (state.stage) {
-                        "GENERAL" -> "VOTACIÓN EN GENERAL"
-                        "SPECIFIC" -> "VOTACIÓN EN PARTICULAR"
-                        else -> "MOCIÓN"
+                        "GENERAL" -> stringResource(R.string.voting_general)
+                        "SPECIFIC" -> stringResource(R.string.voting_specific)
+                        else -> stringResource(R.string.motion)
                     }
                     Text(
                         text = badgeLabel,
@@ -342,7 +344,7 @@ fun TieBreakerScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("AFIRMATIVO", style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.affirmative), style = MaterialTheme.typography.titleLarge)
                 }
 
                 Button(
@@ -354,7 +356,7 @@ fun TieBreakerScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("NEGATIVO", style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.negative), style = MaterialTheme.typography.titleLarge)
                 }
             }
         }
@@ -373,7 +375,7 @@ fun TieBreakerScreen(
                     tonalElevation = 8.dp
                 ) {
                     Text(
-                        text = "Voto de Desempate Registrado Exitosamente",
+                        text = stringResource(R.string.tie_vote_registered),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = TieBreakerOnGold,
