@@ -229,7 +229,6 @@ async def update_legislative_session_status(
             db_session,
             legislative_session_id,
             new_status=body.status,
-            ws_manager=manager,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
@@ -239,12 +238,7 @@ async def update_legislative_session_status(
     background_tasks.add_task(
         manager.broadcast,
         "SESSION_STATUS_CHANGED",
-        {
-            "session_id": str(legislative_session_id),
-            "new_status": body.status.value,
-            "opened_at": response.opened_at.isoformat() if response.opened_at else None,
-            "closed_at": response.closed_at.isoformat() if response.closed_at else None,
-        },
+        response.model_dump(mode="json"),
     )
 
     return response

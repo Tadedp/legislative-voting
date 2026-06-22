@@ -11,6 +11,7 @@ from src.models.system_user import SystemUser
 from src.models.system_user_session import SystemUserSession
 from src.models.voting_round import VotingRound
 from src.models.voting_type import VotingType
+from src.models.audit_ledger import AuditLedger
 
 __all__ = [
     "Base",
@@ -26,4 +27,5 @@ __all__ = [
     "SystemUserSession",
     "VotingRound",
     "VotingType",
+    "AuditLedger",
 ]

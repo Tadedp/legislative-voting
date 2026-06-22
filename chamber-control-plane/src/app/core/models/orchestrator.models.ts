@@ -35,7 +35,7 @@ export interface LegislativeSession {
 
 // REST Rehydration Payload (GET legislative-sessions/current)
 export interface CurrentStateResponse {
-  active_session: LegislativeSession | null;
+  session: LegislativeSession | null;
   active_agenda_item: ActiveAgendaItem | null;
   active_voting_round: ActiveVotingRound | null;
 }

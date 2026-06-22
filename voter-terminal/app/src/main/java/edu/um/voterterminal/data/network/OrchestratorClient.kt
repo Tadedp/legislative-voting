@@ -66,9 +66,27 @@ class OrchestratorClient @Inject constructor(
             setBody(request)
         }
         if (!response.status.isSuccess()) {
+            val errorBody = try { response.body<String>() } catch (e: Exception) { "" }
             if (response.status.value == 403) {
-                throw IllegalStateException("HTTP 403")
+                throw IllegalStateException("HTTP 403: $errorBody")
             }
+            throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description} - $errorBody")
+        }
+        return response.body()
+    }
+
+    // -----------------------------------------------------------------------
+    // REST: Session State
+    // -----------------------------------------------------------------------
+
+    /**
+     * Fetches the current session state and active voting round (if any).
+     */
+    suspend fun getCurrentSession(): CurrentSessionResponse {
+        val response = httpClient.get("$httpBaseUrl/legislative-sessions/current") {
+            header(HEADER_DEVICE_TOKEN, requireDeviceToken())
+        }
+        if (!response.status.isSuccess()) {
             throw IllegalStateException("API Error [${response.status.value}]: ${response.status.description}")
         }
         return response.body()

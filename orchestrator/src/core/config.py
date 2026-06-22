@@ -74,7 +74,7 @@ class SecuritySettings(BaseSettings):
     
     ANTI_REPLAY_WINDOW_MS: int = 60000
     SESSION_COOKIE_NAME: str = "session_id"
-    SESSION_EXPIRY_SECONDS: int = 8     
+    SESSION_EXPIRY_SECONDS: int = 28800     
     ARGON2_TIME_COST: int = 2
     ARGON2_MEMORY_COST: int = 65536
     ARGON2_PARALLELISM: int = 2
@@ -97,10 +97,25 @@ class LoggingSettings(BaseSettings):
     LEVEL: LogLevelOption = LogLevelOption.INFO
     SERVICE_NAME: str = "orchestrator"
 
+class BlockchainSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=DOTENV_PATH,
+        env_file_encoding="utf-8",
+        env_ignore_empty=True, 
+        populate_by_name=True,
+        extra="ignore", 
+    )
+
+    ORCHESTRATOR_WALLET_PRIVATE_KEY: str = ""
+    POLYGON_AMOY_RPC_URL: str = ""
+    CONTRACT_ADDRESS: str = ""
+    ABI_PATH: str = "contracts/abi.json"
+
 class Settings(BaseSettings):
     app: AppSettings = AppSettings()
     db: DatabaseSettings = DatabaseSettings()
     security: SecuritySettings = SecuritySettings()
     logging: LoggingSettings = LoggingSettings()
+    blockchain: BlockchainSettings = BlockchainSettings()
 
 settings: Settings = Settings()

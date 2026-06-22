@@ -2,10 +2,10 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '841cd2bde874'
+revision: str = '5bdff6778247'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -140,6 +140,19 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_voting_rounds'))
     )
     op.create_index('idx_voting_rounds_session_id', 'voting_rounds', ['legislative_session_id'], unique=False)
+    op.create_table('audit_ledgers',
+    sa.Column('voting_round_id', sa.UUID(), nullable=False),
+    sa.Column('is_nominal', sa.Boolean(), nullable=False),
+    sa.Column('nominal_merkle_root', sa.String(), nullable=True),
+    sa.Column('tally_merkle_root', sa.String(), nullable=True),
+    sa.Column('eligibility_merkle_root', sa.String(), nullable=True),
+    sa.Column('transaction_hash', sa.String(), nullable=False),
+    sa.Column('block_number', sa.BigInteger(), nullable=False),
+    sa.Column('tally_payload', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column('published_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['voting_round_id'], ['voting_rounds.id'], name=op.f('fk_audit_ledgers_voting_round_id_voting_rounds')),
+    sa.PrimaryKeyConstraint('voting_round_id', name=op.f('pk_audit_ledgers'))
+    )
     op.create_table('nominal_votes',
     sa.Column('event_id', sa.UUID(), server_default=sa.text('uuidv7()'), nullable=False),
     sa.Column('voting_round_id', sa.UUID(), nullable=False),
@@ -156,6 +169,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Uuid(), server_default=sa.text('uuidv7()'), nullable=False),
     sa.Column('voting_round_id', sa.UUID(), nullable=False),
     sa.Column('vote_value', sa.Enum('AFFIRMATIVE', 'NEGATIVE', 'ABSTENTION', name='vote_value'), nullable=False),
+    sa.Column('salt', sa.Text(), nullable=False),
     sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['voting_round_id'], ['voting_rounds.id'], name=op.f('fk_non_nominal_tallies_voting_round_id_voting_rounds'), ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_non_nominal_tallies'))
@@ -180,6 +194,7 @@ def downgrade() -> None:
     op.drop_table('non_nominal_voters')
     op.drop_table('non_nominal_tallies')
     op.drop_table('nominal_votes')
+    op.drop_table('audit_ledgers')
     op.drop_index('idx_voting_rounds_session_id', table_name='voting_rounds')
     op.drop_table('voting_rounds')
     op.drop_table('session_attendances')

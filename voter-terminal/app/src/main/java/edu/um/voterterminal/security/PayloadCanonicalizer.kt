@@ -24,9 +24,9 @@ object PayloadCanonicalizer {
         // Build sorted manually or using a sorted map to ensure deterministic output
         val sortedMap = sortedMapOf(
             "legislator_id" to JsonPrimitive(request.legislatorId),
-            "motion_id" to JsonPrimitive(request.motionId),
             "timestamp" to JsonPrimitive(request.timestamp),
-            "vote_value" to JsonPrimitive(request.voteValue)
+            "vote_value" to JsonPrimitive(request.voteValue),
+            "voting_round_id" to JsonPrimitive(request.votingRoundId)
         )
         val jsonObject = JsonObject(sortedMap)
         // Json.encodeToString on JsonObject with default configuration produces no whitespace
@@ -39,10 +39,9 @@ object PayloadCanonicalizer {
      */
     fun buildNonNominalPayload(request: NonNominalVoteRequest): String {
         val sortedMap = sortedMapOf(
-            "encrypted_payload" to JsonPrimitive(request.encryptedPayload),
             "legislator_id" to JsonPrimitive(request.legislatorId),
-            "motion_id" to JsonPrimitive(request.motionId),
-            "timestamp" to JsonPrimitive(request.timestamp)
+            "timestamp" to JsonPrimitive(request.timestamp),
+            "voting_round_id" to JsonPrimitive(request.votingRoundId)
         )
         val jsonObject = JsonObject(sortedMap)
         return Json.encodeToString(jsonObject)

@@ -34,7 +34,7 @@ async def get_current_active(
     stmt = (
         select(LegislativeSession)
         .where(
-            LegislativeSession.status == LegSessionStatus.ACTIVE,
+            LegislativeSession.status != LegSessionStatus.CLOSED,
             LegislativeSession.deleted_at.is_(None),
         )
     )

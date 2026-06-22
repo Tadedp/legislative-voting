@@ -74,6 +74,7 @@ async def cast_non_nominal_vote(
     voting_round_id: uuid.UUID,
     legislator_id: uuid.UUID,
     vote_value: VoteValue,
+    salt: str,
     timestamp: int,
     cryptographic_signature: str,
 ) -> None:
@@ -88,7 +89,6 @@ async def cast_non_nominal_vote(
         {
             "legislator_id": str(legislator_id),
             "timestamp": timestamp,
-            "vote_value": vote_value.value,
             "voting_round_id": str(voting_round_id),
         },
         separators=(",", ":"),
@@ -111,6 +111,7 @@ async def cast_non_nominal_vote(
     tally = NonNominalTally(
         voting_round_id=voting_round_id,
         vote_value=vote_value,
+        salt=salt,
     )
 
     await vote_repository.create_non_nominal_voter_and_tally(

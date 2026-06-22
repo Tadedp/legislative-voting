@@ -101,6 +101,7 @@ async def cast_non_nominal_vote(
             voting_round_id=body.voting_round_id,
             legislator_id=body.legislator_id,
             vote_value=body.vote_value,
+            salt=body.salt,
             timestamp=body.timestamp,
             cryptographic_signature=body.cryptographic_signature,
         )

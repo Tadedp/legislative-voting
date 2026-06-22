@@ -1,4 +1,4 @@
-@if (!stateSync.isConnectionStable()) {
+@if (!stateSync.isConnectionStable() && auth.currentUser() != null) {
   <div class="connection-lock-overlay">
     <div class="lock-content">
       <i class="pi pi-exclamation-triangle lock-icon"></i>

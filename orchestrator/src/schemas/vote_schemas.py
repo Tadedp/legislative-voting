@@ -23,6 +23,7 @@ class NonNominalVote(BaseModel):
     voting_round_id: uuid.UUID
     legislator_id: uuid.UUID
     vote_value: VoteValue
+    salt: str
     timestamp: Annotated[
         int,
         Field(gt=0, description="Unix epoch milliseconds"),

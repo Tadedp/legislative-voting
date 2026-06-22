@@ -13,6 +13,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -54,7 +58,22 @@ class MainActivity : FragmentActivity() {
                     }
                 }
 
+                // Coercion Defense: Wipe volatile salt when the app loses focus
+                val lifecycleOwner = LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_PAUSE) {
+                            viewModel.wipeVolatileSalt()
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                    }
+                }
+
                 val remainingTime by viewModel.remainingTimeSeconds.collectAsState()
+                val volatileSalt by viewModel.volatileSaltString.collectAsState()
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -64,7 +83,8 @@ class MainActivity : FragmentActivity() {
                         uiState = uiState,
                         activity = this@MainActivity,
                         viewModel = viewModel,
-                        remainingTimeSeconds = remainingTime
+                        remainingTimeSeconds = remainingTime,
+                        volatileSalt = volatileSalt
                     )
                 }
             }
@@ -77,7 +97,8 @@ fun VoterTerminalRouter(
     uiState: VotingState,
     activity: FragmentActivity,
     viewModel: VotingViewModel,
-    remainingTimeSeconds: Int?
+    remainingTimeSeconds: Int?,
+    volatileSalt: String?
 ) {
     Crossfade(targetState = uiState, label = "Router") { state ->
         when (state) {
@@ -117,6 +138,7 @@ fun VoterTerminalRouter(
                     state = state.originalState,
                     isLocked = true,
                     remainingTimeSeconds = remainingTimeSeconds,
+                    volatileSalt = volatileSalt,
                     onVoteClicked = { /* Ignored — vote already submitted */ }
                 )
             }

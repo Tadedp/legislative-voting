@@ -24,6 +24,7 @@ dependencies = [
     "cryptography==48.0.0",
     "ecdsa==0.19.2",
     "argon2-cffi==25.1.0",
+    "web3==7.16.0",
 
     # Logging
     "structlog==25.5.0",

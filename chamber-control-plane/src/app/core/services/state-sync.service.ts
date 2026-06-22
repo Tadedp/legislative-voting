@@ -1,4 +1,4 @@
-import { Injectable, inject, DestroyRef, signal } from '@angular/core';
+import { Injectable, inject, DestroyRef, signal, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
@@ -10,6 +10,7 @@ import {
   OrchestratorEvent, 
   CurrentStateResponse 
 } from '../models/orchestrator.models';
+import { AuthService } from './auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -17,6 +18,7 @@ import {
 export class StateSyncService {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(AuthService);
   
   private socket$?: WebSocketSubject<OrchestratorEvent>;
 
@@ -27,7 +29,23 @@ export class StateSyncService {
   readonly isConnectionStable = signal<boolean>(false);
 
   constructor() {
-    this.initializeWebSocket();
+    effect(() => {
+      const user = this.auth.currentUser();
+      if (user) {
+        if (!this.socket$ || this.socket$.closed) {
+          this.initializeWebSocket();
+        }
+      } else {
+        this.disconnectWebSocket();
+      }
+    });
+  }
+
+  private disconnectWebSocket() {
+    if (this.socket$) {
+      this.socket$.complete();
+      this.socket$ = undefined;
+    }
   }
 
   private initializeWebSocket() {
@@ -72,11 +90,11 @@ export class StateSyncService {
     this.isConnectionStable.set(false);
   }
 
-  private rehydrateState() {
+  rehydrateState() {
     this.http.get<CurrentStateResponse>('/legislative-sessions/current')
       .subscribe({
         next: (response) => {
-          this.sessionState.set(response.active_session);
+          this.sessionState.set(response.session);
           this.activeItem.set(response.active_agenda_item);
           this.votingRound.set(response.active_voting_round);
           // Only after successful rehydration is the connection considered stable

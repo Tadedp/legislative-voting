@@ -20,6 +20,7 @@ from src.api.routers.user_router import user_router
 from src.api.routers.voting_type_router import voting_type_router
 from src.api.routers.websocket_router import websocket_router
 from src.api.routers.vote_router import vote_router
+from src.api.routers.public_audit_router import public_audit_router
 
 log = get_logger(__name__)
 
@@ -82,3 +83,4 @@ router.include_router(user_router)
 router.include_router(voting_type_router)
 router.include_router(websocket_router)
 router.include_router(vote_router)
+router.include_router(public_audit_router)

@@ -222,7 +222,7 @@ def validate_attestation_properties(extension_data: dict[str, Any], provisioning
     if not app_id_octet_string:
         raise ValueError("attestationApplicationId (709) missing in softwareEnforced")
         
-    app_id_seq = core.Sequence.load(app_id_octet_string)y
+    app_id_seq = core.Sequence.load(app_id_octet_string)
     package_infos = app_id_seq[0]
     
     found_package = False

@@ -67,6 +67,7 @@ fun VotingScreen(
     isPresident: Boolean = false,
     presidentVotesOrdinarily: Boolean = true,
     remainingTimeSeconds: Int? = null,
+    volatileSalt: String? = null,
     onVoteClicked: (voteValue: String) -> Unit
 ) {
     // Scenario C: President whose ordinary vote is NOT required
@@ -286,14 +287,35 @@ fun VotingScreen(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     tonalElevation = 8.dp
                 ) {
-                    Text(
-                        text = stringResource(R.string.vote_registered),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        textAlign = TextAlign.Center,
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(horizontal = 32.dp, vertical = 24.dp)
-                    )
+                    ) {
+                        Text(
+                            text = stringResource(R.string.vote_registered),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            textAlign = TextAlign.Center
+                        )
+                        if (volatileSalt != null) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = stringResource(R.string.verification_code_label, volatileSalt),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = stringResource(R.string.verification_code_warning),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
                 }
             }
         }

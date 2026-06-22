@@ -3,8 +3,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from structlog import get_logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings, EnvironmentOption
 from src.models.device import Device
 from src.repositories import device_repository, legislator_repository
 from src.services.renaper_client import renaper_client
@@ -15,6 +17,8 @@ from src.core.security import (
     parse_attestation_extension,
     validate_attestation_properties
 )
+
+log = get_logger(__name__)
 
 async def enroll_device(
     db: AsyncSession,
@@ -54,8 +58,12 @@ async def enroll_device(
         ext_data = parse_attestation_extension(certificate_chain[0])
         validate_attestation_properties(ext_data, provisioning_token, "edu.um.voterterminal")
     except Exception as exc:
-        raise ValueError(f"Fallo en la atestación: {str(exc)}")
         
+        if settings.app.ENVIRONMENT == EnvironmentOption.PRODUCTION:
+            raise ValueError(f"Fallo en la atestación: {str(exc)}")
+        else:
+            log.error(f"Bypassing attestation failure in DEVELOPMENT mode: {exc}")
+            
     # Extract PEM for signature verification
     public_key_pem = extract_public_key_pem_from_cert(certificate_chain[0])
 

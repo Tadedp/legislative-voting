@@ -6,13 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.legislative_session import LegislativeSession, LegSessionStatus
 from src.models.voting_round import VotingRound
+from src.models.session_attendance import SessionAttendance, AttendanceStatus
 from src.repositories import (
     agenda_item_repository,
     legislative_session_repository, 
+    legislator_repository,
     voting_round_repository,
 ) 
 from src.services.quorum_service import compute_quorum_minimum, get_certified_quorum
-
+    
 async def list_legislative_sessions(db: AsyncSession) -> list[LegislativeSession]:
     return await legislative_session_repository.get_all_active(db)
 
@@ -34,6 +36,10 @@ async def create_legislative_session(
     pres_type: str | None = None,
     presiding_officer_id: uuid.UUID | None = None,
 ) -> LegislativeSession:
+    current_session = await legislative_session_repository.get_current_active(db)
+    if current_session is not None:
+        raise ValueError(f"Ya existe una sesión ({current_session.status.value}). Debe cerrarla primero.")
+
     kwargs: dict[str, Any] = {"title": title}
     if pres_type is not None:
         kwargs["pres_type"] = pres_type
@@ -41,7 +47,29 @@ async def create_legislative_session(
         kwargs["presiding_officer_id"] = presiding_officer_id
 
     session = LegislativeSession(**kwargs)
-    return await legislative_session_repository.create(db, session=session)
+    session = await legislative_session_repository.create(db, session=session)
+
+    # Initialize the attendance ledger for all active legislators
+    active_legislators = await legislator_repository.get_all_active(db)
+    attendance_records: list[SessionAttendance] = []
+    
+    for leg in active_legislators:
+        status = AttendanceStatus.ABSENT
+        if presiding_officer_id and leg.id == presiding_officer_id:
+            status = AttendanceStatus.PRESENT
+            
+        record = SessionAttendance(
+            legislative_session_id=session.id,
+            legislator_id=leg.id,
+            status=status
+        )
+        attendance_records.append(record)
+        
+    if attendance_records:
+        db.add_all(attendance_records)
+        await db.flush()
+        
+    return session
 
 async def update_legislative_session(
     db: AsyncSession,

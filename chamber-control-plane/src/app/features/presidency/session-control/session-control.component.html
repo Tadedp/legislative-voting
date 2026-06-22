@@ -43,6 +43,65 @@
           (onClick)="changeStatus('CLOSED', $event)">
         </p-button>
       </div>
+    } @else {
+      <div class="flex gap-3">
+        <p-button 
+          label="CREAR NUEVA SESIÓN" 
+          icon="pi pi-plus" 
+          severity="info" 
+          (onClick)="showCreateDialog()">
+        </p-button>
+      </div>
     }
   </div>
 </div>
+
+<p-dialog 
+  header="Crear Nueva Sesión" 
+  [(visible)]="displayCreateDialog" 
+  [modal]="true" 
+  [style]="{ width: '400px' }" 
+  [draggable]="false">
+  
+  <div class="flex flex-col gap-4 mt-4">
+    <div class="flex flex-col gap-2">
+      <label for="title" class="font-bold">Título de la Sesión</label>
+      <input pInputText id="title" [(ngModel)]="newSessionTitle" placeholder="Ej. Sesión Ordinaria N° 15" autocomplete="off" />
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <label for="presType" class="font-bold">Rol de Presidencia</label>
+      <p-select 
+        [options]="presTypeOptions" 
+        [(ngModel)]="newSessionPresType" 
+        optionLabel="label" 
+        optionValue="value" 
+        appendTo="body" 
+        styleClass="w-full">
+      </p-select>
+      <small class="text-gray-500">
+        Si es Legislador, su asistencia suma al quórum general y puede emitir votos ordinarios. Si es Ex-Officio, solo podrá desempatar.
+      </small>
+    </div>
+
+    @if (newSessionPresType === 'LEGISLATOR') {
+      <div class="flex flex-col gap-2">
+        <label for="legislator" class="font-bold">Seleccionar Legislador</label>
+        <p-select 
+          [options]="legislators" 
+          [(ngModel)]="selectedLegislatorId" 
+          optionLabel="full_name" 
+          optionValue="id" 
+          appendTo="body" 
+          placeholder="Seleccione el Legislador a cargo de la presidencia"
+          styleClass="w-full">
+        </p-select>
+      </div>
+    }
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" icon="pi pi-times" severity="secondary" (onClick)="displayCreateDialog = false"></p-button>
+    <p-button label="Crear" icon="pi pi-check" severity="success" (onClick)="createSession()"></p-button>
+  </ng-template>
+</p-dialog>

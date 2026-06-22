@@ -2,11 +2,11 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import bcrypt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
+from src.core.security import verify_password
 from src.models.system_user import SystemUser
 from src.repositories import session_repository
 
@@ -26,10 +26,7 @@ async def authenticate_user(
     if user is None:
         raise ValueError("Usuario o contraseña inválidos.")
 
-    if not bcrypt.checkpw(
-        password.encode("utf-8"),
-        user.password_hash.encode("utf-8"),
-    ):
+    if not await verify_password(password, user.password_hash):
         raise ValueError("Usuario o contraseña inválidos.")
 
     return user

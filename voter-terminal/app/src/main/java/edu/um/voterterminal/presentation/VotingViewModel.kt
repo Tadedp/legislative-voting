@@ -18,9 +18,12 @@ import edu.um.voterterminal.R
 import edu.um.voterterminal.security.BiometricSigner
 import edu.um.voterterminal.security.EncryptionUtils
 import edu.um.voterterminal.security.KeyStoreManager
+import edu.um.voterterminal.security.CryptoUtils
 import edu.um.voterterminal.security.PayloadCanonicalizer
 import edu.um.voterterminal.service.SessionKeepAliveService
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -51,7 +54,23 @@ class VotingViewModel @Inject constructor(
     private val _provisioningError = MutableStateFlow<String?>(null)
     val provisioningError: StateFlow<String?> = _provisioningError
 
+    private var volatileSaltArray: CharArray? = null
+    
+    private val _volatileSaltString = MutableStateFlow<String?>(null)
+    val volatileSaltString: StateFlow<String?> = _volatileSaltString.asStateFlow()
+
     private var timerJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Wipes the authoritative salt array from RAM using '0' fills
+     * before garbage collecting, preventing memory dump attacks.
+     */
+    fun wipeVolatileSalt() {
+        volatileSaltArray?.fill('0')
+        volatileSaltArray = null
+        _volatileSaltString.value = null
+        System.gc()
+    }
 
     init {
         initializeSession()
@@ -65,6 +84,15 @@ class VotingViewModel @Inject constructor(
                     // Let timer keep running if we just locked our own vote
                 } else {
                     stopTimer()
+                }
+                
+                // Coercion Defense: Wipe the volatile salt if the active round closes
+                // or if we transition to any state other than the open round.
+                val isVotingOpen = (state is VotingState.VotingRoundActive && state.status == "VOTING_OPEN") ||
+                                   (state is VotingState.VoteLocked && state.originalState.status == "VOTING_OPEN")
+                
+                if (!isVotingOpen) {
+                    wipeVolatileSalt()
                 }
             }
         }
@@ -183,7 +211,7 @@ class VotingViewModel @Inject constructor(
                 val hardwareFingerprint = hashBytes.joinToString("") { "%02x".format(it) }
 
                 val enrollRequest = DeviceEnrollRequest(
-                    provisioningToken = provisioningToken,
+                    provisioningToken = provisioningToken.trim(),
                     biometricPayload = biometricPayload,
                     hardwareFingerprint = hardwareFingerprint,
                     certificateChain = certChain
@@ -227,7 +255,7 @@ class VotingViewModel @Inject constructor(
 
                 if (currentState.isNominal) {
                     val unsignedRequest = NominalVoteRequest(
-                        motionId = currentState.votingRoundId,
+                        votingRoundId = currentState.votingRoundId,
                         legislatorId = legislatorId,
                         voteValue = voteValue,
                         timestamp = timestamp,
@@ -243,19 +271,19 @@ class VotingViewModel @Inject constructor(
                 } else {
                     val ephemeralPublicKey = currentState.ephemeralPublicKey
                         ?: throw IllegalStateException("Ephemeral public key missing for non-nominal vote")
-                        
-                    val receiptId = UUID.randomUUID().toString()
-                    val innerEnvelope = buildJsonObject {
-                        put("receipt_id", receiptId)
-                        put("vote_value", voteValue)
-                    }.toString()
+                    // 1. Generate the authoritative secure salt
+                    val saltArray = CryptoUtils.generateVolatileSalt()
+                    volatileSaltArray = saltArray
                     
-                    val encryptedPayload = encryptionUtils.encryptNonNominalPayload(innerEnvelope, ephemeralPublicKey)
+                    // 2. Derive the string for UI display and payload
+                    val saltString = String(saltArray)
+                    _volatileSaltString.value = saltString
                     
                     val unsignedRequest = NonNominalVoteRequest(
-                        motionId = currentState.votingRoundId,
+                        votingRoundId = currentState.votingRoundId,
                         legislatorId = legislatorId,
-                        encryptedPayload = encryptedPayload,
+                        voteValue = voteValue,
+                        salt = saltString,
                         timestamp = timestamp,
                         cryptographicSignature = "" // Placeholder
                     )
@@ -297,7 +325,7 @@ class VotingViewModel @Inject constructor(
                     ?: throw IllegalStateException("Legislator ID missing")
 
                 val unsignedRequest = NominalVoteRequest(
-                    motionId = currentState.votingRoundId,
+                    votingRoundId = currentState.votingRoundId,
                     legislatorId = legislatorId,
                     voteValue = voteValue,
                     timestamp = timestamp,

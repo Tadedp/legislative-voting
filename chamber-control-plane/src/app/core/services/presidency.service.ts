@@ -34,6 +34,12 @@ export interface ProclamationPayload {
   abstentions: number;
 }
 
+export interface SessionCreate {
+  title: string;
+  pres_type: 'EX_OFFICIO' | 'LEGISLATOR';
+  presiding_officer_id?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -41,6 +47,10 @@ export class PresidencyService {
   private readonly http = inject(HttpClient);
 
   // Session Control
+  createSession(data: SessionCreate): Observable<any> {
+    return this.http.post('/legislative-sessions', data);
+  }
+
   updateSessionStatus(sessionId: string, status: SessionStatus): Observable<any> {
     return this.http.patch(`/legislative-sessions/${sessionId}/status`, { status });
   }
@@ -77,5 +87,9 @@ export class PresidencyService {
 
   getAgendaItems(): Observable<any[]> {
     return this.http.get<any[]>('/agenda-items');
+  }
+
+  getLegislators(): Observable<any[]> {
+    return this.http.get<any[]>('/legislators');
   }
 }

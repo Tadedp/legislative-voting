@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, func, text
+from sqlalchemy import DateTime, Enum, ForeignKey, func, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -25,6 +25,10 @@ class NonNominalTally(Base):
     )
     vote_value: Mapped[VoteValue] = mapped_column(
         Enum(VoteValue, name="vote_value"),
+        nullable=False,
+    )
+    salt: Mapped[str] = mapped_column(
+        Text,
         nullable=False,
     )
     timestamp: Mapped[datetime] = mapped_column(

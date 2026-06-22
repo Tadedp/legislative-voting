@@ -35,14 +35,13 @@ data class DeviceEnrollRequest(
  * Submits a plaintext signed vote for a nominal (roll-call) voting round.
  * Auth is via cryptographic signature — no device token header.
  *
- * The `motion_id` field name is retained for backward compatibility with
- * the Orchestrator's `PayloadCanonicalizer` contract; it maps to
- * `voting_round_id` on the server.
+ * Submits a plaintext signed vote for a nominal (roll-call) voting round.
+ * Auth is via cryptographic signature — no device token header.
  */
 @Serializable
 data class NominalVoteRequest(
-    @SerialName("motion_id")
-    val motionId: String,
+    @SerialName("voting_round_id")
+    val votingRoundId: String,
 
     @SerialName("legislator_id")
     val legislatorId: String,
@@ -64,17 +63,30 @@ data class NominalVoteRequest(
  */
 @Serializable
 data class NonNominalVoteRequest(
-    @SerialName("motion_id")
-    val motionId: String,
-
+    @SerialName("voting_round_id")
+    val votingRoundId: String,
     @SerialName("legislator_id")
     val legislatorId: String,
-
-    @SerialName("encrypted_payload")
-    val encryptedPayload: String,
-
+    @SerialName("vote_value")
+    val voteValue: String,
+    @SerialName("salt")
+    val salt: String,
+    @SerialName("timestamp")
     val timestamp: Long,
+    @SerialName("cryptographic_signature")
+    val cryptographicSignature: String
+)
 
+@Serializable
+data class TieBreakerVoteRequest(
+    @SerialName("voting_round_id")
+    val votingRoundId: String,
+    @SerialName("legislator_id")
+    val legislatorId: String,
+    @SerialName("vote_value")
+    val voteValue: String,
+    @SerialName("timestamp")
+    val timestamp: Long,
     @SerialName("cryptographic_signature")
     val cryptographicSignature: String
 )

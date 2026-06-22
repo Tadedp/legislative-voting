@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { StateSyncService } from './core/services/state-sync.service';
+import { AuthService } from './core/services/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -12,4 +13,5 @@ import { StateSyncService } from './core/services/state-sync.service';
 })
 export class App {
   stateSync = inject(StateSyncService);
+  auth = inject(AuthService);
 }

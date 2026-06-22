@@ -34,4 +34,6 @@
     <string name="abstain">ABSTENERSE</string>
     <string name="vote_registered">Voto Registrado Exitosamente</string>
     <string name="identity_verification_failed">Verificación de identidad fallida. El token de aprovisionamiento ha sido consumido. Por favor, solicite un nuevo token al Administrador.</string>
+    <string name="verification_code_label">Su código de verificación es: %1$s</string>
+    <string name="verification_code_warning">Anote este código ahora. Por seguridad, se destruirá al cerrar esta pantalla.</string>
 </resources>

@@ -1,10 +1,11 @@
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
+from web3.exceptions import TimeExhausted
 
 from src.api.dependencies.auth_deps import get_current_user, check_access
 from src.api.dependencies.common_deps import DbSessionDep
-from src.api.exceptions import BadRequestException, ConflictException, NotFoundException
+from src.api.exceptions import BadRequestException, ConflictException, InternalServerException, ServiceUnavailableException, NotFoundException
 from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.models.voting_round import RoundStatus
@@ -14,7 +15,7 @@ from src.schemas.voting_round_schemas import (
     VotingRoundResponse,
     VotingRoundUpdate,
 )
-from src.services import voting_round_service
+from src.services import audit_ledger_service, voting_round_service
 
 voting_round_router = APIRouter(
     tags=["Voting Rounds"],
@@ -244,8 +245,11 @@ async def close_voting_round(
 @voting_round_router.post(
     "/voting-rounds/{voting_round_id}/proclaim",
     response_model=VotingRoundResponse,
-    summary="Proclaim the voting round result",
-    description="Computes and statically saves the result to the DB.",
+    summary="Proclaim the voting round result and anchor to blockchain",
+    description=(
+        "Computes the result, generates Merkle Roots, anchors to "
+        "Polygon Amoy, and statically saves the snapshot to the DB."
+    ),
     dependencies=[Depends(check_access([SystemUserRole.PRESIDENCY]))],
 )
 async def proclaim_voting_round(
@@ -262,8 +266,26 @@ async def proclaim_voting_round(
             negative=body.negative,
             abstentions=body.abstentions,
         )
+        
+        await audit_ledger_service.anchor_and_snapshot_round(
+            db_session, 
+            voting_round_id, 
+            voting_round.is_nominal
+        )
+        
+        await db_session.commit()
+    
+    except TimeExhausted:
+        await db_session.rollback()
+        raise ServiceUnavailableException(
+            "Blockchain RPC timeout. Please retry the proclamation."
+        )
     except ValueError as exc:
+        await db_session.rollback()
         raise ConflictException(str(exc))
+    except Exception as exc:
+        await db_session.rollback()
+        raise InternalServerException(str(exc))
 
     response = VotingRoundResponse.model_validate(voting_round)
 
