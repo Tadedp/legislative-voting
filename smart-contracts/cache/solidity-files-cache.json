@@ -1,0 +1,41 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\Usuario\\Desktop\\tesis\\legislative-voting\\smart-contracts\\contracts\\LegislativeNotary.sol": {
+      "lastModificationDate": 1781873712983,
+      "contentHash": "c8130c869c5a55878a3981dff0a14347",
+      "sourceName": "contracts/LegislativeNotary.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "LegislativeNotary"
+      ]
+    }
+  }
+}

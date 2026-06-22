@@ -1,0 +1,67 @@
+/* You can add global styles to this file, and also import other style files */
+@import 'primeicons/primeicons.css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --gov-primary: #1e293b; /* slate-800 */
+  --gov-accent: #0f172a; /* slate-900 */
+  --gov-surface: #f8fafc; /* slate-50 */
+  --gov-card: #ffffff; /* white */
+  --gov-text: #0f172a; /* slate-900 */
+  --gov-text-muted: #475569; /* slate-600 */
+  --gov-danger: #dc2626; /* red-600 */
+  --gov-danger-hover: #b91c1c; /* red-700 */
+  --gov-success: #16a34a; /* green-600 */
+  --gov-success-hover: #15803d; /* green-700 */
+  --gov-border: #e2e8f0; /* slate-200 */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, sans-serif;
+  background-color: var(--gov-surface);
+  color: var(--gov-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Force Light Mode / Overrides */
+.p-component {
+  font-family: 'Inter', -apple-system, sans-serif !important;
+}
+
+/* Institutional standard radii & shadows */
+.p-button, .p-card, .p-select, .p-inputtext, .p-dialog {
+  border-radius: 4px !important;
+}
+
+.p-card {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid var(--gov-border) !important;
+  background-color: var(--gov-card) !important;
+  color: var(--gov-text) !important;
+}
+
+.p-button-danger {
+  background-color: var(--gov-danger) !important;
+  border-color: var(--gov-danger) !important;
+  color: white !important;
+}
+.p-button-danger:hover {
+  background-color: var(--gov-danger-hover) !important;
+  border-color: var(--gov-danger-hover) !important;
+}
+
+.p-button-success {
+  background-color: var(--gov-success) !important;
+  border-color: var(--gov-success) !important;
+  color: white !important;
+}
+.p-button-success:hover {
+  background-color: var(--gov-success-hover) !important;
+  border-color: var(--gov-success-hover) !important;
+}
+
+.p-button {
+  font-weight: 600 !important;
+}

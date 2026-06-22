@@ -1,0 +1,50 @@
+.connection-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(15, 23, 42, 0.85); /* slate-900 @ 85% opacity */
+  backdrop-filter: blur(4px);
+}
+
+.lock-content {
+  text-align: center;
+  color: #ffffff;
+}
+
+.lock-icon {
+  font-size: 4rem;
+  color: #facc15; /* amber-400 — warning semantic */
+  margin-bottom: 1.5rem;
+}
+
+.lock-content h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.lock-content p {
+  font-size: 1.1rem;
+  color: #cbd5e1; /* slate-300 */
+  margin: 0 0 2rem 0;
+}
+
+.lock-spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #facc15;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
