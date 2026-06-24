@@ -79,6 +79,7 @@ class SecuritySettings(BaseSettings):
     ARGON2_MEMORY_COST: int = 65536
     ARGON2_PARALLELISM: int = 2
     CORS_ALLOWED_ORIGINS: str = "http://localhost:3000"
+    EXPECTED_APK_HASH: str = ""
 
     @property
     def CORS_ALLOWED_ORIGINS_LIST(self) -> list[str]:

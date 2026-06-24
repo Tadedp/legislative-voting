@@ -1,12 +1,13 @@
 import base64
 import hashlib
 import secrets
+from datetime import datetime, timezone
 from typing import Any
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
 from cryptography import x509
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from ecdsa import BadSignatureError, NIST256p, VerifyingKey # type: ignore
 from ecdsa.util import sigdecode_der # type: ignore
@@ -14,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from structlog import get_logger
 from asn1crypto import core
 
-from src.core.config import settings
+from src.core.config import EnvironmentOption, settings
 
 log = get_logger(__name__)
 
@@ -145,18 +146,70 @@ def validate_attestation_chain(certificate_chain: list[str]) -> None:
     if not certificate_chain:
         raise ValueError("Empty certificate chain.")
         
-    root_cert_b64 = certificate_chain[-1]
-    
-    try:
-        root_cert_bytes = base64.b64decode(root_cert_b64)
-        root_cert = x509.load_der_x509_certificate(root_cert_bytes)
-    except Exception as exc:
-        raise ValueError("Root certificate must be valid DER.") from exc
-        
     google_root = x509.load_pem_x509_certificate(GOOGLE_ROOT_CA_PEM.encode())
     
-    if root_cert.public_bytes(Encoding.DER) != google_root.public_bytes(Encoding.DER):
+    certs = []
+    for cert_b64 in certificate_chain:
+        try:
+            cert_bytes = base64.b64decode(cert_b64)
+            certs.append(x509.load_der_x509_certificate(cert_bytes))
+        except Exception as exc:
+            raise ValueError("All certificates must be valid DER.") from exc
+            
+    if certs[-1].public_bytes(Encoding.DER) != google_root.public_bytes(Encoding.DER):
         raise ValueError("Untrusted Root CA: The attestation chain is not rooted in the Google Hardware Attestation Root CA.")
+
+    now = datetime.now(timezone.utc)
+    for cert in certs:
+        valid_before = getattr(cert, 'not_valid_before_utc', cert.not_valid_before)
+        if valid_before.tzinfo is None:
+            valid_before = valid_before.replace(tzinfo=timezone.utc)
+        valid_after = getattr(cert, 'not_valid_after_utc', cert.not_valid_after)
+        if valid_after.tzinfo is None:
+            valid_after = valid_after.replace(tzinfo=timezone.utc)
+        
+        if valid_before > now or valid_after < now:
+            raise ValueError("A certificate in the chain is expired or not yet valid.")
+
+    try:
+        leaf_constraints = certs[0].extensions.get_extension_for_class(x509.BasicConstraints).value
+        if leaf_constraints.ca:
+            raise ValueError("Leaf certificate must not be a CA.")
+    except x509.ExtensionNotFound:
+        pass
+
+    for i in range(1, len(certs)):
+        try:
+            ca_constraints = certs[i].extensions.get_extension_for_class(x509.BasicConstraints).value
+            if not ca_constraints.ca:
+                raise ValueError(f"Intermediate certificate at index {i} must be a CA.")
+        except x509.ExtensionNotFound:
+            raise ValueError(f"Intermediate certificate at index {i} is missing BasicConstraints.")
+
+    for i in range(len(certs) - 1):
+        leaf = certs[i]
+        issuer = certs[i + 1]
+        
+        issuer_public_key = issuer.public_key()
+        
+        try:
+            if isinstance(issuer_public_key, rsa.RSAPublicKey):
+                issuer_public_key.verify(
+                    leaf.signature,
+                    leaf.tbs_certificate_bytes,
+                    padding.PKCS1v15(),
+                    leaf.signature_hash_algorithm,
+                )
+            elif isinstance(issuer_public_key, ec.EllipticCurvePublicKey):
+                issuer_public_key.verify(
+                    leaf.signature,
+                    leaf.tbs_certificate_bytes,
+                    ec.ECDSA(leaf.signature_hash_algorithm),
+                )
+            else:
+                raise ValueError("Unsupported public key type.")
+        except Exception as exc:
+            raise ValueError(f"Signature verification failed for certificate at index {i}.") from exc
 
 def parse_attestation_extension(leaf_cert_b64: str) -> dict[str, Any]:
     try:
@@ -209,10 +262,32 @@ def validate_attestation_properties(extension_data: dict[str, Any], provisioning
     tee_enforced = extension_data.get("teeEnforced")
     if tee_enforced is None:
         raise ValueError("TEE-enforced attestation data missing.")
+
+    auth_timeout = _find_asn1_tag(tee_enforced, 505)
+    if auth_timeout is not None:
+        raise ValueError("TEE key must require per-operation authentication. authTimeout must be absent.")
+        
+    origin = _find_asn1_tag(tee_enforced, 702)
+    if origin != 0:
+        raise ValueError(f"TEE key origin must be 0 (Generated), got {origin}")
+        
+    purpose = _find_asn1_tag(tee_enforced, 1)
+    if not purpose or 2 not in purpose:
+        raise ValueError("TEE key purpose must include 2 (Sign)")
     
-    user_auth_type = _find_asn1_tag(tee_enforced, 503)
-    if user_auth_type not in (2, 3):
-        raise ValueError(f"TEE key does not mandate biometric authentication. userAuthType: {user_auth_type}")
+    user_auth_type = _find_asn1_tag(tee_enforced, 504)
+    if user_auth_type != 2:
+        raise ValueError(f"TEE key does not strictly mandate biometric authentication. userAuthType: {user_auth_type}")
+
+    root_of_trust_bytes = _find_asn1_tag(tee_enforced, 704)
+    if not root_of_trust_bytes:
+        raise ValueError("rootOfTrust (704) missing in teeEnforced")
+        
+    root_of_trust_seq = core.Sequence.load(root_of_trust_bytes)
+    if root_of_trust_seq[0].native != 0:
+        raise ValueError("verifiedBootState is not Verified (0)")
+    if root_of_trust_seq[1].native is not True:
+        raise ValueError("deviceLocked is not True")
 
     software_enforced = extension_data.get("softwareEnforced")
     if software_enforced is None:
@@ -230,6 +305,19 @@ def validate_attestation_properties(extension_data: dict[str, Any], provisioning
         pkg_name_bytes = pkg_info[0].native
         if pkg_name_bytes.decode('utf-8') == package_name:
             found_package = True
+            
+            if settings.app.ENVIRONMENT == EnvironmentOption.PRODUCTION:
+                expected_apk_hash = settings.security.EXPECTED_APK_HASH
+                if not expected_apk_hash:
+                    raise ValueError("EXPECTED_APK_HASH must be set in production environment.")
+                
+                if len(pkg_info) > 1 and len(pkg_info[1]) > 0:
+                    apk_hash_bytes = pkg_info[1][0].native
+                    apk_hash_hex = apk_hash_bytes.hex().lower()
+                    if apk_hash_hex != expected_apk_hash.lower():
+                        raise ValueError(f"App identity proof failed. APK hash mismatch.")
+                else:
+                    raise ValueError("App identity proof failed. No APK signature hash found in attestation.")
             break
             
     if not found_package:

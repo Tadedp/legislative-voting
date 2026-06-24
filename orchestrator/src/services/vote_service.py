@@ -1,7 +1,9 @@
 import json
 import uuid
 import base64
+from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import verify_secp256r1_signature, extract_public_key_from_cert
@@ -39,6 +41,17 @@ async def cast_nominal_vote(
     if legislator is None or legislator.deleted_at is not None:
         raise ValueError("Legislador no encontrado.")
 
+    voting_round = await voting_round_repository.get_by_id(db_session, voting_round_id)
+    if voting_round is None or voting_round.deleted_at is not None:
+        raise ValueError("Votación no encontrada.")
+
+    if voting_round.status != RoundStatus.VOTING_OPEN:
+        raise ValueError("La votación no se encuentra abierta.")
+
+    current_time = int(datetime.now(timezone.utc).timestamp())
+    if abs(current_time - timestamp) > 60:
+        raise ValueError("La carga útil criptográfica ha caducado (TTL de tránsito superado).")
+
     public_key_hex = await _get_device_hex_key(db_session, legislator_id)
 
     canonical_payload = json.dumps(
@@ -66,7 +79,14 @@ async def cast_nominal_vote(
         cryptographic_signature=cryptographic_signature,
     )
 
-    return await vote_repository.create_nominal_vote(db_session, vote=vote)
+    try:
+        result = await vote_repository.create_nominal_vote(db_session, vote=vote)
+        await db_session.commit()
+        return result
+    except IntegrityError:
+        await db_session.rollback()
+        raise ValueError("El legislador ya ha emitido un voto para esta ronda.")
+
 
 async def cast_non_nominal_vote(
     db_session: AsyncSession,
@@ -83,12 +103,24 @@ async def cast_non_nominal_vote(
     if legislator is None or legislator.deleted_at is not None:
         raise ValueError("Legislador no encontrado.")
 
+    voting_round = await voting_round_repository.get_by_id(db_session, voting_round_id)
+    if voting_round is None or voting_round.deleted_at is not None:
+        raise ValueError("Votación no encontrada.")
+
+    if voting_round.status != RoundStatus.VOTING_OPEN:
+        raise ValueError("La votación no se encuentra abierta.")
+
+    current_time = int(datetime.now(timezone.utc).timestamp())
+    if abs(current_time - timestamp) > 60:
+        raise ValueError("La carga útil criptográfica ha caducado (TTL de tránsito superado).")
+
     public_key_hex = await _get_device_hex_key(db_session, legislator_id)
 
     canonical_payload = json.dumps(
         {
             "legislator_id": str(legislator_id),
             "timestamp": timestamp,
+            "vote_value": vote_value.value,
             "voting_round_id": str(voting_round_id),
         },
         separators=(",", ":"),
@@ -114,11 +146,17 @@ async def cast_non_nominal_vote(
         salt=salt,
     )
 
-    await vote_repository.create_non_nominal_voter_and_tally(
-        db_session,
-        voter=voter,
-        tally=tally,
-    )
+    try:
+        await vote_repository.create_non_nominal_voter_and_tally(
+            db_session,
+            voter=voter,
+            tally=tally,
+        )
+        await db_session.commit()
+    except IntegrityError:
+        await db_session.rollback()
+        raise ValueError("El legislador ya ha emitido un voto para esta ronda.")
+
 
 async def cast_tie_breaker_vote(
     db_session: AsyncSession,
@@ -146,6 +184,10 @@ async def cast_tie_breaker_vote(
             "El voto desempate solo está permitido cuando la votación "
             "está en estado 'TIED'.",
         )
+
+    current_time = int(datetime.now(timezone.utc).timestamp())
+    if abs(current_time - timestamp) > 60:
+        raise ValueError("La carga útil criptográfica ha caducado (TTL de tránsito superado).")
 
     leg_session = await legislative_session_repository.get_by_id(
         db_session, voting_round.legislative_session_id,
@@ -195,7 +237,14 @@ async def cast_tie_breaker_vote(
         voting_round.result = "FAILED"
 
     voting_round.status = RoundStatus.RESOLVED
-    await db_session.flush()
+    
+    try:
+        await db_session.flush()
+        await db_session.commit()
+    except IntegrityError:
+        await db_session.rollback()
+        raise ValueError("El legislador ya ha emitido un voto de desempate en esta ronda.")
+        
     return voting_round
 
 async def get_non_nominal_tallies(

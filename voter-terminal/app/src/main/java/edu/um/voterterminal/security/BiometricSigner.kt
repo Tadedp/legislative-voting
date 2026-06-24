@@ -1,5 +1,6 @@
 package edu.um.voterterminal.security
 
+import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -43,6 +44,8 @@ class BiometricSigner @Inject constructor(
             .setTitle("Confirm Vote")
             .setSubtitle("Use your biometric credential to sign this legislative action.")
             .setNegativeButtonText("Cancel")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setConfirmationRequired(true)
             .build()
 
         val biometricPrompt = BiometricPrompt(

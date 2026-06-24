@@ -36,7 +36,7 @@ class KeyStoreManager @Inject constructor() {
      *
      * @return The X.509 certificate chain as a list of Base64 encoded strings.
      */
-    fun generateKeyPairWithAttestation(nationalId: String): List<String> {
+    fun generateKeyPairWithAttestation(provisioningToken: String): List<String> {
         val keyPairGenerator = KeyPairGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_EC,
             KEYSTORE_PROVIDER
@@ -49,9 +49,10 @@ class KeyStoreManager @Inject constructor() {
             .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setUserAuthenticationRequired(true)
+            .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
             // Invalidate key if new fingerprints/faces are added to the device
             .setInvalidatedByBiometricEnrollment(true)
-            .setAttestationChallenge(nationalId.toByteArray(Charsets.UTF_8))
+            .setAttestationChallenge(provisioningToken.toByteArray(Charsets.UTF_8))
             .build()
 
         keyPairGenerator.initialize(parameterSpec)
