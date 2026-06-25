@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -19,6 +20,7 @@ class ConnectionManager:
         self._active_connections: dict[str, WebSocket] = {}
         self._token_to_legislator_id: dict[str, uuid.UUID] = {}
         self._passive_connections: set[WebSocket] = set()
+        self._locks: dict[WebSocket, asyncio.Lock] = {}
 
     async def connect(
         self,
@@ -29,7 +31,17 @@ class ConnectionManager:
     ) -> None:
         """Accept a WebSocket and register it as an active Edge or passive client."""
         await websocket.accept()
+        self._locks[websocket] = asyncio.Lock()
+        
         if device_token and legislator_id:
+            if device_token in self._active_connections:
+                existing_ws = self._active_connections[device_token]
+                try:
+                    await existing_ws.close(code=1008, reason="Concurrent login detected.")
+                except Exception:
+                    pass
+                self.disconnect(existing_ws)
+
             self._active_connections[device_token] = websocket
             self._token_to_legislator_id[device_token] = legislator_id
             log.info(
@@ -45,6 +57,9 @@ class ConnectionManager:
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection."""
+        if websocket in self._locks:
+            del self._locks[websocket]
+
         if websocket in self._passive_connections:
             self._passive_connections.remove(websocket)
             log.info(
@@ -67,36 +82,45 @@ class ConnectionManager:
                 len(self._active_connections),
             )
 
+    async def _send_safe(self, websocket: WebSocket, message: dict[str, Any]) -> None:
+        """Acquire the lock for the websocket before sending the JSON message."""
+        lock = self._locks.get(websocket)
+        if lock is None:
+            return
+            
+        async with lock:
+            await websocket.send_json(message)
+
     async def broadcast(
         self,
         event_type: str,
         data: dict[str, Any],
     ) -> None:
         """Send a JSON event to every connected terminal and passive client."""
+        if not hasattr(self, "_broadcast_lock"):
+            self._broadcast_lock = asyncio.Lock()
+
         message: dict[str, Any] = {
             "event_type": event_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": data,
         }
 
-        stale: list[WebSocket] = []
+        async with self._broadcast_lock:
+            stale: list[WebSocket] = []
+            all_connections = list(self._active_connections.values()) + list(self._passive_connections)
 
-        # Broadcast to active Edge devices
-        for connection in self._active_connections.values():
-            try:
-                await connection.send_json(message)
-            except Exception:
-                stale.append(connection)
+            async def _send(ws: WebSocket) -> None:
+                try:
+                    await self._send_safe(ws, message)
+                except Exception:
+                    stale.append(ws)
 
-        # Broadcast to passive clients
-        for connection in self._passive_connections:
-            try:
-                await connection.send_json(message)
-            except Exception:
-                stale.append(connection)
+            if all_connections:
+                await asyncio.gather(*(_send(ws) for ws in all_connections))
 
-        for ws in stale:
-            self.disconnect(ws)
+            for ws in stale:
+                self.disconnect(ws)
 
     async def send_to_device(
         self,
@@ -120,7 +144,7 @@ class ConnectionManager:
         }
 
         try:
-            await websocket.send_json(message)
+            await self._send_safe(websocket, message)
         except Exception:
             log.error("Failed to send targeted message; disconnecting stale WS.")
             self.disconnect(websocket)

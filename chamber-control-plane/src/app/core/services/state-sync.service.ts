@@ -2,7 +2,7 @@ import { Injectable, inject, DestroyRef, signal, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { retry, timer } from 'rxjs';
+import { retry, timer, Subscription } from 'rxjs';
 import { 
   LegislativeSession, 
   ActiveAgendaItem, 
@@ -28,6 +28,12 @@ export class StateSyncService {
   readonly votingRound = signal<ActiveVotingRound | null>(null);
   readonly isConnectionStable = signal<boolean>(false);
 
+  private eventBuffer: OrchestratorEvent[] = [];
+  private rehydrationSub?: Subscription;
+  
+  // Terminal states array for race condition guards
+  private readonly terminalStates = ['RESOLVED', 'TIED', 'ABORTED', 'VOIDED'];
+
   constructor() {
     effect(() => {
       const user = this.auth.currentUser();
@@ -45,6 +51,10 @@ export class StateSyncService {
     if (this.socket$) {
       this.socket$.complete();
       this.socket$ = undefined;
+    }
+    if (this.rehydrationSub) {
+      this.rehydrationSub.unsubscribe();
+      this.rehydrationSub = undefined;
     }
   }
 
@@ -88,15 +98,43 @@ export class StateSyncService {
   private onConnectionLost() {
     console.warn('WebSocket connection lost. Engaging circuit breaker.');
     this.isConnectionStable.set(false);
+    this.eventBuffer = []; 
   }
 
   rehydrateState() {
-    this.http.get<CurrentStateResponse>('/legislative-sessions/current')
+    if (this.rehydrationSub) {
+      this.rehydrationSub.unsubscribe();
+    }
+
+    this.rehydrationSub = this.http.get<CurrentStateResponse>('/legislative-sessions/current')
+      .pipe(
+        retry({
+          count: Infinity,
+          delay: (error, retryCount) => {
+            if (error.status === 404) throw error;
+            this.isConnectionStable.set(false);
+            console.warn(`Rehydration failed. Retrying in ${Math.min(1000 * Math.pow(2, retryCount), 30000)}ms...`);
+            return timer(Math.min(1000 * Math.pow(2, retryCount), 30000));
+          }
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (response) => {
+          if (!this.socket$ || this.socket$.closed) {
+            console.warn('Rehydration ignored: WebSocket disconnected during HTTP request.');
+            return;
+          }
+
           this.sessionState.set(response.session);
           this.activeItem.set(response.active_agenda_item);
           this.votingRound.set(response.active_voting_round);
+          
+          if (this.eventBuffer.length > 0) {
+            this.eventBuffer.forEach(event => this.handleEvent(event, true));
+            this.eventBuffer = [];
+          }
+
           // Only after successful rehydration is the connection considered stable
           this.isConnectionStable.set(true);
           console.log('State successfully rehydrated and verified.');
@@ -110,16 +148,23 @@ export class StateSyncService {
             this.activeItem.set(null);
             this.votingRound.set(null);
             this.isConnectionStable.set(true);
-          } else {
-            // A true network or 500 error means state is unverified.
-            this.isConnectionStable.set(false);
+            this.eventBuffer = [];
           }
         }
       });
   }
 
-  private handleEvent(event: OrchestratorEvent) {
+  private handleEvent(event: OrchestratorEvent, isReplaying: boolean = false) {
     if (!event || !event.event_type) return;
+
+    if (!this.isConnectionStable() && !isReplaying) {
+      if (this.eventBuffer.length < 1000) {
+        this.eventBuffer.push(event);
+      } else {
+        console.warn('Event buffer overflow. Dropping event.');
+      }
+      return;
+    }
 
     switch (event.event_type) {
       case 'SESSION_STATUS_CHANGED':
@@ -133,7 +178,10 @@ export class StateSyncService {
         break;
       case 'VOTING_ROUND_CLOSED':
         // The backend payload only has ids, so we merge the state manually
-        this.votingRound.update(current => current ? { ...current, status: 'VOTING_CLOSED' } : null);
+        this.votingRound.update(current => {
+          if (current && this.terminalStates.includes(current.status)) return current;
+          return current ? { ...current, status: 'VOTING_CLOSED' } : null;
+        });
         break;
       case 'VOTING_ROUND_TIED':
         this.votingRound.update(current => current ? { ...current, status: 'TIED' } : null);
