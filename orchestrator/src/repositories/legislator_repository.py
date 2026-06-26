@@ -54,6 +54,7 @@ async def get_by_provisioning_token(
         .where(
             Legislator.provisioning_token == provisioning_token,
         )
+        .with_for_update()
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()

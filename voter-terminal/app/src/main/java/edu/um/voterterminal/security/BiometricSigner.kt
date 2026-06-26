@@ -27,7 +27,9 @@ class BiometricSigner @Inject constructor(
      */
     suspend fun authenticateAndSign(
         activity: FragmentActivity,
-        payloadBytes: ByteArray
+        payloadBytes: ByteArray,
+        voteValue: String,
+        specificReference: String
     ): String = suspendCancellableCoroutine { continuation ->
 
         val signature: Signature
@@ -42,7 +44,7 @@ class BiometricSigner @Inject constructor(
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Confirm Vote")
-            .setSubtitle("Use your biometric credential to sign this legislative action.")
+            .setSubtitle("Confirmando voto: $voteValue para $specificReference")
             .setNegativeButtonText("Cancel")
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .setConfirmationRequired(true)

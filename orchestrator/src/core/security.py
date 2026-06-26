@@ -7,10 +7,9 @@ from typing import Any
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from ecdsa import BadSignatureError, NIST256p, VerifyingKey # type: ignore
-from ecdsa.util import sigdecode_der # type: ignore
 from starlette.concurrency import run_in_threadpool
 from structlog import get_logger
 from asn1crypto import core
@@ -97,23 +96,18 @@ def verify_secp256r1_signature(
         public_key_bytes = bytes.fromhex(public_key_hex)
         signature_bytes = bytes.fromhex(signature_hex)
 
-        vk = VerifyingKey.from_string( # type: ignore
-            public_key_bytes,
-            curve=NIST256p,
-            hashfunc=hashlib.sha256,
+        public_key = ec.EllipticCurvePublicKey.from_encoded_point(
+            ec.SECP256R1(),
+            public_key_bytes
         )
 
-        vk.verify( # type: ignore
+        public_key.verify(
             signature_bytes,
             payload,
-            hashfunc=hashlib.sha256,
-            sigdecode=sigdecode_der,
+            ec.ECDSA(hashes.SHA256())
         )
         return True
 
-    except BadSignatureError:
-        log.error("Signature verification failed: invalid signature.")
-        return False
     except Exception:
         log.error(
             "Signature verification failed: malformed key or signature.",

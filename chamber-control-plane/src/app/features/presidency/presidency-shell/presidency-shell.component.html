@@ -9,7 +9,7 @@
     </ng-template>
     <ng-template #end>
       <div class="flex items-center gap-3 end-controls">
-        <span class="real-time-clock">{{ currentTime | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+        <span class="real-time-clock">{{ currentTime() | date:'dd/MM/yyyy HH:mm:ss' }}</span>
         <p-button icon="pi pi-power-off" severity="danger" (onClick)="logout()" ariaLabel="Logout"></p-button>
       </div>
     </ng-template>

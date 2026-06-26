@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 from typing import Any
 import uuid
 
-import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.security import hash_password
 from src.models.system_user import SystemUser, SystemUserRole
 from src.repositories import user_repository
 
@@ -30,10 +30,7 @@ async def create_user(
     if existing is not None:
         raise ValueError(f"El usuario '{username}' ya está en uso.")
 
-    password_hash = bcrypt.hashpw(
-        password.encode("utf-8"),
-        bcrypt.gensalt(),
-    ).decode("utf-8")
+    password_hash = await hash_password(password)
 
     user = SystemUser(
         username=username,
@@ -56,10 +53,7 @@ async def update_user(
 
     if "password" in update_data:
         raw_password = update_data.pop("password")
-        update_data["password_hash"] = bcrypt.hashpw(
-            raw_password.encode("utf-8"),
-            bcrypt.gensalt(),
-        ).decode("utf-8")
+        update_data["password_hash"] = await hash_password(raw_password)
 
     if "username" in update_data and update_data["username"] != user.username:
         existing = await user_repository.get_by_username(

@@ -167,7 +167,10 @@ class OrchestratorClient @Inject constructor(
                 val token = requireDeviceToken()
 
                 httpClient.webSocket(
-                    urlString = "$wsBaseUrl/ws/state?device_token=$token"
+                    urlString = "$wsBaseUrl/ws/state",
+                    request = {
+                        header(HEADER_DEVICE_TOKEN, token)
+                    }
                 ) {
                     // Successful connection — reset backoff
                     retryCount = 0

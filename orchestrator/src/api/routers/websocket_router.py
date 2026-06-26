@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Cookie, Header, Query, WebSocket, WebSocketDisconnect
 from structlog import get_logger
 
 from src.api.dependencies.auth_deps import get_current_user
@@ -13,7 +13,7 @@ websocket_router = APIRouter()
 @websocket_router.websocket("/ws/state")
 async def ws_state(
     websocket: WebSocket,
-    device_token: str | None = Query(None),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
     session_id: str | None = Cookie(None),
 ) -> None:
     """Authenticate a voter terminal or a passive dashboard."""

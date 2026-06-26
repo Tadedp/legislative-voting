@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.security import verify_secp256r1_signature, extract_public_key_from_cert
 from src.models.nominal_vote import NominalVote, VoteValue
 from src.models.non_nominal_tally import NonNominalTally
@@ -49,13 +50,14 @@ async def cast_nominal_vote(
         raise ValueError("La votación no se encuentra abierta.")
 
     current_time = int(datetime.now(timezone.utc).timestamp())
-    if abs(current_time - timestamp) > 60:
+    if abs(current_time - timestamp) > settings.security.ANTI_REPLAY_WINDOW_SECONDS:
         raise ValueError("La carga útil criptográfica ha caducado (TTL de tránsito superado).")
 
     public_key_hex = await _get_device_hex_key(db_session, legislator_id)
 
     canonical_payload = json.dumps(
         {
+            "action": "nominal",
             "legislator_id": str(legislator_id),
             "timestamp": timestamp,
             "vote_value": vote_value.value,
@@ -111,14 +113,16 @@ async def cast_non_nominal_vote(
         raise ValueError("La votación no se encuentra abierta.")
 
     current_time = int(datetime.now(timezone.utc).timestamp())
-    if abs(current_time - timestamp) > 60:
+    if abs(current_time - timestamp) > settings.security.ANTI_REPLAY_WINDOW_SECONDS:
         raise ValueError("La carga útil criptográfica ha caducado (TTL de tránsito superado).")
 
     public_key_hex = await _get_device_hex_key(db_session, legislator_id)
 
     canonical_payload = json.dumps(
         {
+            "action": "non_nominal",
             "legislator_id": str(legislator_id),
+            "salt": salt,
             "timestamp": timestamp,
             "vote_value": vote_value.value,
             "voting_round_id": str(voting_round_id),
@@ -185,8 +189,11 @@ async def cast_tie_breaker_vote(
             "está en estado 'TIED'.",
         )
 
+    if voting_round.tie_breaker_vote_value is not None:
+        raise ValueError("El voto desempate ya fue emitido.")
+
     current_time = int(datetime.now(timezone.utc).timestamp())
-    if abs(current_time - timestamp) > 60:
+    if abs(current_time - timestamp) > settings.security.ANTI_REPLAY_WINDOW_SECONDS:
         raise ValueError("La carga útil criptográfica ha caducado (TTL de tránsito superado).")
 
     leg_session = await legislative_session_repository.get_by_id(
@@ -213,6 +220,7 @@ async def cast_tie_breaker_vote(
 
     canonical_payload = json.dumps(
         {
+            "action": "tie_breaker",
             "legislator_id": str(legislator_id),
             "timestamp": timestamp,
             "vote_value": vote_value.value,
@@ -230,6 +238,7 @@ async def cast_tie_breaker_vote(
         raise ValueError("Falló la verificación de la firma criptográfica.")
 
     voting_round.tie_breaker_vote_value = vote_value.value
+    voting_round.tie_breaker_signature = cryptographic_signature
 
     if vote_value == VoteValue.AFFIRMATIVE:
         voting_round.result = "PASSED"
@@ -238,13 +247,7 @@ async def cast_tie_breaker_vote(
 
     voting_round.status = RoundStatus.RESOLVED
     
-    try:
-        await db_session.flush()
-        await db_session.commit()
-    except IntegrityError:
-        await db_session.rollback()
-        raise ValueError("El legislador ya ha emitido un voto de desempate en esta ronda.")
-        
+    await db_session.flush()
     return voting_round
 
 async def get_non_nominal_tallies(

@@ -16,6 +16,7 @@ from src.schemas.voting_round_schemas import (
     VotingRoundUpdate,
 )
 from src.services import audit_ledger_service, voting_round_service
+from src.core.database import async_session_maker
 
 voting_round_router = APIRouter(
     tags=["Voting Rounds"],
@@ -267,19 +268,20 @@ async def proclaim_voting_round(
             abstentions=body.abstentions,
         )
         
-        await audit_ledger_service.anchor_and_snapshot_round(
-            db_session, 
-            voting_round_id, 
-            voting_round.is_nominal
-        )
+        # Schedule the blockchain anchoring in the background to prevent 504 Timeouts
+        async def background_anchor(round_id: uuid.UUID, nominal: bool):
+            async with async_session_maker() as db:
+                await audit_ledger_service.anchor_and_snapshot_round(
+                    db, 
+                    round_id, 
+                    nominal
+                )
+                await db.commit()
+                
+        background_tasks.add_task(background_anchor, voting_round_id, voting_round.is_nominal)
         
         await db_session.commit()
     
-    except TimeExhausted:
-        await db_session.rollback()
-        raise ServiceUnavailableException(
-            "Blockchain RPC timeout. Please retry the proclamation."
-        )
     except ValueError as exc:
         await db_session.rollback()
         raise ConflictException(str(exc))

@@ -5,10 +5,12 @@ from math import ceil
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
 from src.models.agenda_item import ItemStatus
 from src.models.legislative_session import PresidentType
 from src.models.nominal_vote import VoteValue
+from src.models.non_nominal_voter import NonNominalVoter
 from src.models.voting_round import RoundStage, RoundStatus, VotingRound
 from src.models.voting_type import CalculationBase
 from src.repositories import (
@@ -279,6 +281,15 @@ async def proclaim_voting_round(
         else:
             aff = affirmative
             neg = negative
+            
+            abst = abstentions or 0
+            
+            stmt = select(func.count(NonNominalVoter.id)).where(
+                NonNominalVoter.voting_round_id == round_id,
+            )
+            total_votes_cast = await db.scalar(stmt)
+            if aff + neg + abst != total_votes_cast:
+                raise ValueError("El recuento de votos no coincide con la cantidad de recibos de sufragio.")
 
     total_members = await legislator_repository.count_active_legislators(db)
     quorum_present = voting_round.certified_quorum_count or voting_round.quorum_present_count or 0

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, NgZone, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MenubarModule } from 'primeng/menubar';
@@ -24,16 +24,19 @@ import { VotingOperatorComponent } from '../voting-operator/voting-operator.comp
 export class PresidencyShellComponent implements OnInit, OnDestroy {
   authService = inject(AuthService);
   router = inject(Router);
+  ngZone = inject(NgZone);
 
-  currentTime = new Date();
+  currentTime = signal(new Date());
   clockInterval: any;
 
   items: MenuItem[] = [];
 
   ngOnInit() {
-    this.clockInterval = setInterval(() => {
-      this.currentTime = new Date();
-    }, 1000);
+    this.ngZone.runOutsideAngular(() => {
+      this.clockInterval = setInterval(() => {
+        this.currentTime.set(new Date());
+      }, 1000);
+    });
   }
 
   ngOnDestroy() {

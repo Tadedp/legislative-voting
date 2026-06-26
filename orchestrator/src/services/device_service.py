@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.device import Device
 from src.repositories import device_repository, legislator_repository
 from src.services.renaper_client import renaper_client
+from src.core.websocket import manager
 from src.core.security import (
     extract_public_key_pem_from_cert,
     compute_hardware_fingerprint,
@@ -33,7 +34,20 @@ async def enroll_device(
     if legislator.provisioning_token_expires_at and now > legislator.provisioning_token_expires_at:
         raise PermissionError("Token de aprovisionamiento expirado.")
 
-    # 2. Biometric Check
+    # 2. Hardware Fingerprint Check
+    computed_fingerprint = compute_hardware_fingerprint(certificate_chain[0])
+    if computed_fingerprint != hardware_fingerprint.lower():
+        raise ValueError("Discrepancia en la huella de hardware.")
+
+    # 3. Cryptographic Hardware Attestation Audit
+    try:
+        validate_attestation_chain(certificate_chain)
+        ext_data = parse_attestation_extension(certificate_chain[0])
+        validate_attestation_properties(ext_data, provisioning_token, "edu.um.voterterminal")
+    except Exception as exc:
+        raise ValueError(f"Fallo en la atestación: {str(exc)}")
+
+    # 4. Biometric Check
     identity_ok = await renaper_client.verify_identity(legislator.national_id, biometric_payload)
     if not identity_ok:
         # Burn the token on failure
@@ -42,19 +56,6 @@ async def enroll_device(
         legislator.provisioning_token_generated_at = None
         await db.flush()
         raise PermissionError("Fallo en la verificación de identidad biométrica.")
-
-    # 3. Hardware Fingerprint Check
-    computed_fingerprint = compute_hardware_fingerprint(certificate_chain[0])
-    if computed_fingerprint != hardware_fingerprint.lower():
-        raise ValueError("Discrepancia en la huella de hardware.")
-
-    # 4. Cryptographic Hardware Attestation Audit
-    try:
-        validate_attestation_chain(certificate_chain)
-        ext_data = parse_attestation_extension(certificate_chain[0])
-        validate_attestation_properties(ext_data, provisioning_token, "edu.um.voterterminal")
-    except Exception as exc:
-        raise ValueError(f"Fallo en la atestación: {str(exc)}")
             
     # Extract PEM for signature verification
     public_key_pem = extract_public_key_pem_from_cert(certificate_chain[0])
@@ -96,7 +97,8 @@ async def wipe_device(
 
     device.deleted_at = now
     device.device_token = f"REVOKED_{secrets.token_urlsafe(32)}"
-    device.public_key_pem = f"REVOKED_KEY_{now.timestamp()}"
+
+    await manager.force_disconnect_device(old_device_token)
 
     await db.flush()
     return device, old_device_token

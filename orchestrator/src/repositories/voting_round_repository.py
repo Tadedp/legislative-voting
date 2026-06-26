@@ -56,6 +56,17 @@ async def has_passed_general_round(
     result = await db.execute(stmt)
     return result.scalar_one_or_none() is not None
 
+async def get_by_agenda_item_id(
+    db: AsyncSession,
+    agenda_item_id: uuid.UUID,
+) -> list[VotingRound]:
+    stmt = select(VotingRound).where(
+        VotingRound.agenda_item_id == agenda_item_id,
+        VotingRound.deleted_at.is_(None),
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
 async def create(
     db: AsyncSession,
     *,

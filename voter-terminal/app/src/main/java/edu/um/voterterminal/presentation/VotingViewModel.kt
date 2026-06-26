@@ -263,7 +263,12 @@ class VotingViewModel @Inject constructor(
                     )
                     
                     val canonicalJson = PayloadCanonicalizer.buildNominalPayload(unsignedRequest)
-                    val signature = biometricSigner.authenticateAndSign(activity, canonicalJson.toByteArray(Charsets.UTF_8))
+                    val signature = biometricSigner.authenticateAndSign(
+                        activity,
+                        canonicalJson.toByteArray(Charsets.UTF_8),
+                        voteValue,
+                        currentState.specificReference ?: ""
+                    )
                     
                     val signedRequest = unsignedRequest.copy(cryptographicSignature = signature)
                     orchestratorClient.castNominalVote(signedRequest)
@@ -289,7 +294,12 @@ class VotingViewModel @Inject constructor(
                     )
                     
                     val canonicalJson = PayloadCanonicalizer.buildNonNominalPayload(unsignedRequest)
-                    val signature = biometricSigner.authenticateAndSign(activity, canonicalJson.toByteArray(Charsets.UTF_8))
+                    val signature = biometricSigner.authenticateAndSign(
+                        activity,
+                        canonicalJson.toByteArray(Charsets.UTF_8),
+                        voteValue,
+                        currentState.specificReference ?: ""
+                    )
                     
                     val signedRequest = unsignedRequest.copy(cryptographicSignature = signature)
                     orchestratorClient.castNonNominalVote(signedRequest)
@@ -332,10 +342,12 @@ class VotingViewModel @Inject constructor(
                     cryptographicSignature = "" // Placeholder for canonicalization
                 )
 
-                val canonicalJson = PayloadCanonicalizer.buildNominalPayload(unsignedRequest)
+                val canonicalJson = PayloadCanonicalizer.buildTieBreakerPayload(unsignedRequest)
                 val signature = biometricSigner.authenticateAndSign(
                     activity,
-                    canonicalJson.toByteArray(Charsets.UTF_8)
+                    canonicalJson.toByteArray(Charsets.UTF_8),
+                    voteValue,
+                    currentState.specificReference ?: ""
                 )
 
                 val signedRequest = unsignedRequest.copy(cryptographicSignature = signature)

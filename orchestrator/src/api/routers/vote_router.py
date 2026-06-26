@@ -1,6 +1,5 @@
 import uuid
 from decimal import Decimal
-from time import time_ns
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status, Response
 
@@ -45,11 +44,6 @@ async def cast_nominal_vote(
     background_tasks: BackgroundTasks,
     body: NominalVote,
 ) -> NominalVoteResponse:
-    # Anti-replay window check.
-    now_ms = time_ns() // 1_000_000
-    if abs(now_ms - body.timestamp) > settings.security.ANTI_REPLAY_WINDOW_MS:
-        raise BadRequestException("Timestamp outside allowed anti-replay window.")
-
     try:
         vote = await vote_service.cast_nominal_vote(
             db_session,
@@ -91,10 +85,6 @@ async def cast_non_nominal_vote(
     background_tasks: BackgroundTasks,
     body: NonNominalVote,
 ) -> Response:
-    now_ms = time_ns() // 1_000_000
-    if abs(now_ms - body.timestamp) > settings.security.ANTI_REPLAY_WINDOW_MS:
-        raise BadRequestException("Timestamp outside allowed anti-replay window.")
-
     try:
         await vote_service.cast_non_nominal_vote(
             db_session,
@@ -207,11 +197,6 @@ async def cast_tie_breaker_vote(
     background_tasks: BackgroundTasks,
     body: TieBreakerVote,
 ) -> VotingRoundResponse:
-    # Anti-replay window check.
-    now_ms = time_ns() // 1_000_000
-    if abs(now_ms - body.timestamp) > settings.security.ANTI_REPLAY_WINDOW_MS:
-        raise BadRequestException("Timestamp outside allowed anti-replay window.")
-
     try:
         voting_round = await vote_service.cast_tie_breaker_vote(
             db_session,

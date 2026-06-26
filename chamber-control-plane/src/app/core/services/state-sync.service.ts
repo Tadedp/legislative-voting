@@ -2,7 +2,7 @@ import { Injectable, inject, DestroyRef, signal, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { retry, timer, Subscription } from 'rxjs';
+import { retry, timer, Subscription, repeat } from 'rxjs';
 import { 
   LegislativeSession, 
   ActiveAgendaItem, 
@@ -11,6 +11,7 @@ import {
   CurrentStateResponse 
 } from '../models/orchestrator.models';
 import { AuthService } from './auth.service';
+import { Router } from '@angular/router';
 
 @Injectable({
   providedIn: 'root'
@@ -19,6 +20,7 @@ export class StateSyncService {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   
   private socket$?: WebSocketSubject<OrchestratorEvent>;
 
@@ -27,12 +29,14 @@ export class StateSyncService {
   readonly activeItem = signal<ActiveAgendaItem | null>(null);
   readonly votingRound = signal<ActiveVotingRound | null>(null);
   readonly isConnectionStable = signal<boolean>(false);
+  readonly attendanceUpdated = signal<number>(0);
 
   private eventBuffer: OrchestratorEvent[] = [];
-  private rehydrationSub?: Subscription;
+  private rehydrationSub: Subscription | null = null;
+  private wsSubscription: Subscription | null = null;
   
   // Terminal states array for race condition guards
-  private readonly terminalStates = ['RESOLVED', 'TIED', 'ABORTED', 'VOIDED'];
+  private readonly terminalStates = ['RESOLVED', 'ABORTED', 'VOIDED'];
 
   constructor() {
     effect(() => {
@@ -48,6 +52,9 @@ export class StateSyncService {
   }
 
   private disconnectWebSocket() {
+    this.wsSubscription?.unsubscribe();
+    this.wsSubscription = null;
+
     if (this.socket$) {
       this.socket$.complete();
       this.socket$ = undefined;
@@ -73,7 +80,7 @@ export class StateSyncService {
       }
     });
 
-    this.socket$
+    this.wsSubscription = this.socket$
       .pipe(
         retry({
           count: Infinity,
@@ -82,6 +89,7 @@ export class StateSyncService {
             return timer(Math.min(1000 * Math.pow(2, retryCount), 30000));
           }
         }),
+        repeat({ delay: 1000 }),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
@@ -99,6 +107,7 @@ export class StateSyncService {
     console.warn('WebSocket connection lost. Engaging circuit breaker.');
     this.isConnectionStable.set(false);
     this.eventBuffer = []; 
+    this.rehydrationSub?.unsubscribe();
   }
 
   rehydrateState() {
@@ -112,6 +121,7 @@ export class StateSyncService {
           count: Infinity,
           delay: (error, retryCount) => {
             if (error.status === 404) throw error;
+            if (error.status === 401 || error.status === 403) throw error;
             this.isConnectionStable.set(false);
             console.warn(`Rehydration failed. Retrying in ${Math.min(1000 * Math.pow(2, retryCount), 30000)}ms...`);
             return timer(Math.min(1000 * Math.pow(2, retryCount), 30000));
@@ -141,6 +151,11 @@ export class StateSyncService {
         },
         error: (err) => {
           console.error('Failed to rehydrate state', err);
+          if (err.status === 401 || err.status === 403) {
+            this.isConnectionStable.set(true);
+            this.router.navigate(['/auth/login']);
+            return;
+          }
           if (err.status === 404) {
             // A 404 means there is no active legislative session yet.
             // This is a normal state. We must unlock the UI so the Presidency can start one.
@@ -166,6 +181,13 @@ export class StateSyncService {
       return;
     }
 
+    const currentRound = this.votingRound();
+    if (currentRound && this.terminalStates.includes(currentRound.status)) {
+      if (event.data && event.data.id === currentRound.id) {
+        return;
+      }
+    }
+
     switch (event.event_type) {
       case 'SESSION_STATUS_CHANGED':
         this.sessionState.set(event.data);
@@ -174,30 +196,52 @@ export class StateSyncService {
         this.activeItem.set(event.data);
         break;
       case 'VOTING_ROUND_OPENED':
-        this.votingRound.set(event.data);
+        this.votingRound.update(current => {
+          if (current && current.id === event.data?.id) {
+            if (current.status === 'VOTING_CLOSED' || this.terminalStates.includes(current.status)) {
+              return current;
+            }
+          }
+          return event.data;
+        });
         break;
       case 'VOTING_ROUND_CLOSED':
         // The backend payload only has ids, so we merge the state manually
         this.votingRound.update(current => {
-          if (current && this.terminalStates.includes(current.status)) return current;
-          return current ? { ...current, status: 'VOTING_CLOSED' } : null;
+          if (!current || current.id !== event.data?.id) return current;
+          if (current.status !== 'VOTING_OPEN') return current;
+          return { ...current, status: 'VOTING_CLOSED' };
         });
         break;
       case 'VOTING_ROUND_TIED':
-        this.votingRound.update(current => current ? { ...current, status: 'TIED' } : null);
+        this.votingRound.update(current => {
+          if (!current || current.id !== event.data?.id) return current;
+          if (current.status !== 'VOTING_CLOSED') return current;
+          return { ...current, status: 'TIED' };
+        });
         break;
       case 'VOTING_ROUND_RESOLVED':
-        this.votingRound.update(current => current ? { ...current, status: 'RESOLVED' } : null);
+        this.votingRound.update(current => {
+          if (!current || current.id !== event.data?.id) return current;
+          if (current.status !== 'VOTING_CLOSED' && current.status !== 'TIED') return current;
+          return { ...current, status: 'RESOLVED' };
+        });
         break;
       case 'VOTING_ROUND_ABORTED':
         // Void the round entirely so the President can start over
-        this.votingRound.set(null);
+        this.votingRound.update(current => {
+          if (!current || current.id !== event.data?.id) return current;
+          return null;
+        });
         break;
       case 'VOTE_CAST':
         // Placeholder for future vote tally implementation
         break;
       case 'QUORUM_WARNING':
         console.warn(`Quorum warning received: ${event.data?.connected}/${event.data?.minimum_required}`);
+        break;
+      case 'ATTENDANCE_UPDATED':
+        this.attendanceUpdated.update(val => val + 1);
         break;
       default:
         console.warn(`Unrecognized Orchestrator event type: ${event.event_type}`);

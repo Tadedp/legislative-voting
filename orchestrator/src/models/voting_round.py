@@ -102,6 +102,10 @@ class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         Text,
         nullable=True,
     )
+    tie_breaker_signature: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
     opened_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

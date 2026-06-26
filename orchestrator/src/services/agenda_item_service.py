@@ -5,7 +5,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.agenda_item import AgendaItem, ItemCategory
-from src.repositories import agenda_item_repository
+from src.repositories import agenda_item_repository, voting_round_repository
+from src.models.voting_round import RoundStatus
 
 async def list_agenda_items(db: AsyncSession) -> list[AgendaItem]:
     return await agenda_item_repository.get_all_active(db)
@@ -62,6 +63,15 @@ async def soft_delete_agenda_item(
 
     if item is None or item.deleted_at is not None:
         raise ValueError("Tema de agenda no encontrado.")
+
+    # Check for active voting rounds
+    rounds = await voting_round_repository.get_by_agenda_item_id(db, item_id)
+    for r in rounds:
+        if r.status in (RoundStatus.DRAFT, RoundStatus.VOTING_OPEN, RoundStatus.VOTING_CLOSED):
+            raise ValueError(
+                "No se puede eliminar el tema: posee rondas de votación "
+                f"en estado activo ({r.status.value})."
+            )
 
     item.deleted_at = datetime.now(timezone.utc)
     await db.flush()

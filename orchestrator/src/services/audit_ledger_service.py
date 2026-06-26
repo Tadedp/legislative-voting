@@ -33,10 +33,24 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
     if is_nominal:
         stmt = select(NominalVote, Legislator).join(Legislator, NominalVote.legislator_id == Legislator.id).where(NominalVote.voting_round_id == round_id)
         res = await db.execute(stmt)
-        for vote, leg in res.all():
-            d_stmt = select(Device).where(Device.legislator_id == leg.id).where(Device.deleted_at == None)
+        vote_rows = res.all()
+        
+        # Bulk query for Devices (Task 4 & 5)
+        legislator_ids = [leg.id for _, leg in vote_rows]
+        if legislator_ids:
+            # Order by assigned_at desc so we get the most recent device if multiple exist
+            d_stmt = select(Device).where(Device.legislator_id.in_(legislator_ids)).order_by(Device.assigned_at.desc())
             d_res = await db.execute(d_stmt)
-            dev = d_res.scalar_one_or_none()
+            # Create a dictionary mapping legislator_id to their most recent device
+            device_map = {}
+            for d in d_res.scalars().all():
+                if d.legislator_id not in device_map:
+                    device_map[d.legislator_id] = d
+        else:
+            device_map = {}
+
+        for vote, leg in vote_rows:
+            dev = device_map.get(leg.id)
             pem = dev.public_key_pem if dev else ""
             
             tallies[vote.vote_value.name] += 1
@@ -63,10 +77,22 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
         # Voters
         v_stmt = select(NonNominalVoter, Legislator).join(Legislator, NonNominalVoter.legislator_id == Legislator.id).where(NonNominalVoter.voting_round_id == round_id)
         v_res = await db.execute(v_stmt)
-        for voter, leg in v_res.all():
-            d_stmt = select(Device).where(Device.legislator_id == leg.id).where(Device.deleted_at == None)
+        voter_rows = v_res.all()
+        
+        # Bulk query for Devices (Task 4 & 5)
+        legislator_ids = [leg.id for _, leg in voter_rows]
+        if legislator_ids:
+            d_stmt = select(Device).where(Device.legislator_id.in_(legislator_ids)).order_by(Device.assigned_at.desc())
             d_res = await db.execute(d_stmt)
-            dev = d_res.scalar_one_or_none()
+            device_map = {}
+            for d in d_res.scalars().all():
+                if d.legislator_id not in device_map:
+                    device_map[d.legislator_id] = d
+        else:
+            device_map = {}
+
+        for voter, leg in voter_rows:
+            dev = device_map.get(leg.id)
             pem = dev.public_key_pem if dev else ""
             
             verified_participants.append(VerifiedParticipantSchema(

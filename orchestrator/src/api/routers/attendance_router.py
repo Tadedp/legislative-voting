@@ -1,10 +1,11 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 
 from src.api.dependencies.auth_deps import check_access, get_current_user
 from src.api.dependencies.common_deps import DbSessionDep
 from src.api.exceptions import NotFoundException
+from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.schemas.attendance_schemas import AttendanceBulkUpdate, SessionAttendanceResponse, SessionAttendanceEnriched
 from src.services import attendance_service
@@ -43,6 +44,7 @@ async def get_attendance(
 )
 async def bulk_update_attendance(
     db_session: DbSessionDep,
+    background_tasks: BackgroundTasks,
     legislative_session_id: uuid.UUID,
     body: AttendanceBulkUpdate,
 ) -> list[SessionAttendanceResponse]:
@@ -55,6 +57,15 @@ async def bulk_update_attendance(
             db_session,
             legislative_session_id,
             updates=updates, # type: ignore
+        )
+        
+        # Broadcast the update
+        background_tasks.add_task(
+            manager.broadcast,
+            "ATTENDANCE_UPDATED",
+            {
+                "legislative_session_id": str(legislative_session_id)
+            }
         )
     except ValueError as exc:
         raise NotFoundException(str(exc))

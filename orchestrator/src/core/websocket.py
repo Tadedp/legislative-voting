@@ -8,6 +8,8 @@ from structlog import get_logger
 
 log = get_logger(__name__)
 
+background_tasks = set()
+
 class ConnectionManager:
     """Manages WebSocket connections for all connected voter terminals and dashboards.
 
@@ -17,10 +19,10 @@ class ConnectionManager:
     """
 
     def __init__(self) -> None:
-        self._active_connections: dict[str, WebSocket] = {}
+        self._active_edge_devices: dict[str, WebSocket] = {}
         self._token_to_legislator_id: dict[str, uuid.UUID] = {}
-        self._passive_connections: set[WebSocket] = set()
-        self._locks: dict[WebSocket, asyncio.Lock] = {}
+        self._active_dashboards: set[WebSocket] = set()
+        self._queues: dict[WebSocket, asyncio.Queue] = {}
 
     async def connect(
         self,
@@ -31,65 +33,105 @@ class ConnectionManager:
     ) -> None:
         """Accept a WebSocket and register it as an active Edge or passive client."""
         await websocket.accept()
-        self._locks[websocket] = asyncio.Lock()
+        queue: asyncio.Queue = asyncio.Queue()
+        self._queues[websocket] = queue
+        
+        worker_task = asyncio.create_task(self._worker(websocket, queue))
+        background_tasks.add(worker_task)
+        worker_task.add_done_callback(background_tasks.discard)
         
         if device_token and legislator_id:
-            if device_token in self._active_connections:
-                existing_ws = self._active_connections[device_token]
+            if device_token in self._active_edge_devices:
+                existing_ws = self._active_edge_devices.pop(device_token)
+                self._token_to_legislator_id.pop(device_token, None)
                 try:
                     await existing_ws.close(code=1008, reason="Concurrent login detected.")
                 except Exception:
                     pass
                 self.disconnect(existing_ws)
 
-            self._active_connections[device_token] = websocket
+            self._active_edge_devices[device_token] = websocket
             self._token_to_legislator_id[device_token] = legislator_id
             log.info(
                 "Active WebSocket connected. Active connections: %d",
-                len(self._active_connections),
+                len(self._active_edge_devices),
             )
         else:
-            self._passive_connections.add(websocket)
+            self._active_dashboards.add(websocket)
             log.info(
                 "Passive WebSocket connected. Passive connections: %d",
-                len(self._passive_connections),
+                len(self._active_dashboards),
             )
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection."""
-        if websocket in self._locks:
-            del self._locks[websocket]
+        try:
+            if websocket in self._queues:
+                queue = self._queues.pop(websocket)
+                queue.put_nowait(None)
+        except (KeyError, ValueError):
+            pass
 
-        if websocket in self._passive_connections:
-            self._passive_connections.remove(websocket)
-            log.info(
-                "Passive WebSocket disconnected. Passive connections: %d",
-                len(self._passive_connections),
-            )
-            return
+        try:
+            if websocket in self._active_dashboards:
+                self._active_dashboards.remove(websocket)
+                log.info(
+                    "Passive WebSocket disconnected. Passive connections: %d",
+                    len(self._active_dashboards),
+                )
+                return
+        except (KeyError, ValueError):
+            pass
 
         token_to_remove: str | None = None
-        for token, ws in self._active_connections.items():
+        for token, ws in list(self._active_edge_devices.items()):
             if ws is websocket:
                 token_to_remove = token
                 break
 
         if token_to_remove is not None:
-            del self._active_connections[token_to_remove]
-            self._token_to_legislator_id.pop(token_to_remove, None)
-            log.info(
-                "Active WebSocket disconnected. Active connections: %d",
-                len(self._active_connections),
-            )
+            try:
+                del self._active_edge_devices[token_to_remove]
+                self._token_to_legislator_id.pop(token_to_remove, None)
+                log.info(
+                    "Active WebSocket disconnected. Active connections: %d",
+                    len(self._active_edge_devices),
+                )
+            except (KeyError, ValueError):
+                pass
+
+    async def force_disconnect_device(self, device_token: str) -> None:
+        """Forcefully disconnect an edge device by its token (e.g. upon wipe)."""
+        websocket = self._active_edge_devices.get(device_token)
+        if websocket:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+            self.disconnect(websocket)
+
+    async def _worker(self, websocket: WebSocket, queue: asyncio.Queue) -> None:
+        """Dedicated background task to guarantee FIFO message delivery per client."""
+        try:
+            while True:
+                message = await queue.get()
+                if message is None:
+                    queue.task_done()
+                    break
+                await websocket.send_json(message)
+                queue.task_done()
+        except Exception:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+            self.disconnect(websocket)
 
     async def _send_safe(self, websocket: WebSocket, message: dict[str, Any]) -> None:
-        """Acquire the lock for the websocket before sending the JSON message."""
-        lock = self._locks.get(websocket)
-        if lock is None:
-            return
-            
-        async with lock:
-            await websocket.send_json(message)
+        """Queue the message for the websocket worker to send."""
+        queue = self._queues.get(websocket)
+        if queue is not None:
+            queue.put_nowait(message)
 
     async def broadcast(
         self,
@@ -97,30 +139,16 @@ class ConnectionManager:
         data: dict[str, Any],
     ) -> None:
         """Send a JSON event to every connected terminal and passive client."""
-        if not hasattr(self, "_broadcast_lock"):
-            self._broadcast_lock = asyncio.Lock()
-
         message: dict[str, Any] = {
             "event_type": event_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": data,
         }
 
-        async with self._broadcast_lock:
-            stale: list[WebSocket] = []
-            all_connections = list(self._active_connections.values()) + list(self._passive_connections)
+        all_connections = list(self._active_edge_devices.values()) + list(self._active_dashboards)
 
-            async def _send(ws: WebSocket) -> None:
-                try:
-                    await self._send_safe(ws, message)
-                except Exception:
-                    stale.append(ws)
-
-            if all_connections:
-                await asyncio.gather(*(_send(ws) for ws in all_connections))
-
-            for ws in stale:
-                self.disconnect(ws)
+        for ws in all_connections:
+            await self._send_safe(ws, message)
 
     async def send_to_device(
         self,
@@ -129,7 +157,7 @@ class ConnectionManager:
         data: dict[str, Any],
     ) -> None:
         """Send a targeted JSON event to a specific device."""
-        websocket = self._active_connections.get(device_token)
+        websocket = self._active_edge_devices.get(device_token)
         if websocket is None:
             log.error(
                 "ws.send_to_device.not_connected",
@@ -147,12 +175,16 @@ class ConnectionManager:
             await self._send_safe(websocket, message)
         except Exception:
             log.error("Failed to send targeted message; disconnecting stale WS.")
+            try:
+                await websocket.close()
+            except Exception:
+                pass
             self.disconnect(websocket)
 
     @property
     def active_count(self) -> int:
         """Return the number of currently active Edge WebSocket connections."""
-        return len(self._active_connections)
+        return len(self._active_edge_devices)
 
     @property
     def connected_legislator_ids(self) -> set[uuid.UUID]:

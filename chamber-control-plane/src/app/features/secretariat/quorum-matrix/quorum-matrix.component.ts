@@ -25,6 +25,8 @@ export class QuorumMatrixComponent {
   // Computed signal to determine if the matrix is locked
   readonly isVotingOpen = computed(() => this.stateSync.votingRound()?.status === 'VOTING_OPEN');
   
+  private readonly stateSync = inject(StateSyncService);
+  
   attendanceList: SessionAttendanceEnriched[] = [];
   isLoading = false;
 
@@ -41,6 +43,15 @@ export class QuorumMatrixComponent {
         this.loadAttendance(session.id);
       } else {
         this.attendanceList = [];
+      }
+    });
+    
+    // Listen for WebSocket broadcast to dynamically reload
+    effect(() => {
+      this.stateSync.attendanceUpdated(); // Access signal to trigger dependency
+      const session = this.stateSync.sessionState();
+      if (session?.id) {
+        this.loadAttendance(session.id);
       }
     });
   }
