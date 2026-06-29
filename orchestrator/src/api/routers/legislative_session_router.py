@@ -9,6 +9,7 @@ from src.api.exceptions import (
     ConflictException,
     NotFoundException,
     UnauthorizedException,
+    InternalServerException,
 )
 from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
@@ -230,8 +231,13 @@ async def update_legislative_session_status(
             legislative_session_id,
             new_status=body.status,
         )
+        await db_session.commit()
     except ValueError as exc:
+        await db_session.rollback()
         raise ConflictException(str(exc))
+    except Exception as exc:
+        await db_session.rollback()
+        raise InternalServerException(str(exc))
 
     response = LegislativeSessionResponse.model_validate(legislative_session)
 

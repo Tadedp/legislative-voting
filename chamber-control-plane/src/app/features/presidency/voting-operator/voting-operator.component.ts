@@ -2,7 +2,8 @@ import { Component, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { switchMap, filter, concatMap } from 'rxjs/operators';
+import { switchMap, filter, concatMap, catchError } from 'rxjs/operators';
+import { EMPTY, retry } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -78,10 +79,19 @@ export class VotingOperatorComponent {
     // Reactive Tally Fetching
     toObservable(this.stateSync.votingRound).pipe(
       filter(round => round?.status === 'VOTING_CLOSED'),
-      switchMap(round => this.presidencyService.getRoundTally(round!.id))
+      switchMap(round => this.presidencyService.getRoundTally(round!.id).pipe(
+        retry({ count: 5, delay: 1000 }),
+        catchError(() => {
+          this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo obtener el escrutinio.' });
+          return EMPTY;
+        })
+      ))
     ).subscribe({
-      next: (tally) => this.currentTally.set(tally),
-      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo obtener el escrutinio.' })
+      next: (tally) => {
+        if (tally) {
+          this.currentTally.set(tally);
+        }
+      }
     });
   }
 
@@ -165,13 +175,7 @@ export class VotingOperatorComponent {
       acceptButtonStyleClass: 'p-button-success',
       rejectButtonStyleClass: 'p-button-text',
       accept: () => {
-        const payload = {
-          affirmative: tally.affirmative,
-          negative: tally.negative,
-          abstentions: tally.abstentions
-        };
-
-        this.presidencyService.proclaimVotingRound(round.id, payload).subscribe({
+        this.presidencyService.proclaimVotingRound(round.id).subscribe({
           next: () => {
             this.messageService.add({ severity: 'success', summary: 'Proclamado', detail: 'El voto ha sido cimentado legalmente.' });
             this.currentTally.set(null); // Clear local tally

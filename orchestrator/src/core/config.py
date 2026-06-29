@@ -72,7 +72,7 @@ class SecuritySettings(BaseSettings):
         extra="ignore", 
     )
     
-    ANTI_REPLAY_WINDOW_SECONDS: int = 60
+    ANTI_REPLAY_WINDOW_MILLISECONDS: int = 60000
     SESSION_COOKIE_NAME: str = "session_id"
     SESSION_EXPIRY_SECONDS: int = 28800     
     ARGON2_TIME_COST: int = 2

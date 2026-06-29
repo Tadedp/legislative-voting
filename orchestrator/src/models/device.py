@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Text, func
+from sqlalchemy import DateTime, ForeignKey, Text, func, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, SoftDeleteMixin, UUIDPrimaryKeyMixin
@@ -15,12 +15,10 @@ class Device(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
 
     legislator_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("legislators.id"),
-        unique=True,
         nullable=False,
     )
     hardware_fingerprint: Mapped[str] = mapped_column(
         Text,
-        unique=True,
         nullable=False,
     )
     public_key_pem: Mapped[str] = mapped_column(
@@ -38,8 +36,23 @@ class Device(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):
         nullable=False,
     )
 
-    legislator: Mapped[Legislator] = relationship(
+    legislator: Mapped["Legislator"] = relationship(
         "Legislator",
         back_populates="device",
         lazy="raise_on_sql",
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_active_device_legislator",
+            "legislator_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "uq_active_device_fingerprint",
+            "hardware_fingerprint",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )

@@ -20,14 +20,13 @@ object PayloadCanonicalizer {
      * Creates the canonical payload for a Nominal Vote.
      * Only includes the fields that are actually signed (excludes the signature itself).
      */
-    fun buildNominalPayload(request: NominalVoteRequest): String {
+    fun buildNominalPayload(votingRoundId: String, legislatorId: String, voteValue: String, timestamp: Long): String {
         // Build sorted manually or using a sorted map to ensure deterministic output
         val sortedMap = sortedMapOf(
-            "action" to JsonPrimitive("nominal"),
-            "legislator_id" to JsonPrimitive(request.legislatorId),
-            "timestamp" to JsonPrimitive(request.timestamp),
-            "vote_value" to JsonPrimitive(request.voteValue),
-            "voting_round_id" to JsonPrimitive(request.votingRoundId)
+            "legislator_id" to JsonPrimitive(legislatorId),
+            "timestamp" to JsonPrimitive(timestamp),
+            "vote_value" to JsonPrimitive(voteValue),
+            "voting_round_id" to JsonPrimitive(votingRoundId)
         )
         val jsonObject = JsonObject(sortedMap)
         // Json.encodeToString on JsonObject with default configuration produces no whitespace
@@ -38,14 +37,13 @@ object PayloadCanonicalizer {
      * Creates the canonical payload for a Non-Nominal Vote.
      * Only includes the fields that are actually signed (excludes the signature itself).
      */
-    fun buildNonNominalPayload(request: NonNominalVoteRequest): String {
+    fun buildNonNominalPayload(votingRoundId: String, legislatorId: String, voteValue: String, salt: String, timestamp: Long): String {
         val sortedMap = sortedMapOf(
-            "action" to JsonPrimitive("non_nominal"),
-            "legislator_id" to JsonPrimitive(request.legislatorId),
-            "salt" to JsonPrimitive(request.salt),
-            "timestamp" to JsonPrimitive(request.timestamp),
-            "vote_value" to JsonPrimitive(request.voteValue),
-            "voting_round_id" to JsonPrimitive(request.votingRoundId)
+            "legislator_id" to JsonPrimitive(legislatorId),
+            "salt" to JsonPrimitive(salt),
+            "timestamp" to JsonPrimitive(timestamp),
+            "vote_value" to JsonPrimitive(voteValue),
+            "voting_round_id" to JsonPrimitive(votingRoundId)
         )
         val jsonObject = JsonObject(sortedMap)
         return Json.encodeToString(jsonObject)
@@ -54,13 +52,12 @@ object PayloadCanonicalizer {
     /**
      * Creates the canonical payload for a Tie Breaker Vote.
      */
-    fun buildTieBreakerPayload(request: NominalVoteRequest): String {
+    fun buildTieBreakerPayload(votingRoundId: String, legislatorId: String, voteValue: String, timestamp: Long): String {
         val sortedMap = sortedMapOf(
-            "action" to JsonPrimitive("tie_breaker"),
-            "legislator_id" to JsonPrimitive(request.legislatorId),
-            "timestamp" to JsonPrimitive(request.timestamp),
-            "vote_value" to JsonPrimitive(request.voteValue),
-            "voting_round_id" to JsonPrimitive(request.votingRoundId)
+            "legislator_id" to JsonPrimitive(legislatorId),
+            "timestamp" to JsonPrimitive(timestamp),
+            "vote_value" to JsonPrimitive(voteValue),
+            "voting_round_id" to JsonPrimitive(votingRoundId)
         )
         val jsonObject = JsonObject(sortedMap)
         return Json.encodeToString(jsonObject)

@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    BigInteger,
     Text,
     false,
     func,
@@ -106,6 +107,14 @@ class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         Text,
         nullable=True,
     )
+    tie_breaker_client_timestamp: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+    )
+    tie_breaker_device_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("devices.id"),
+        nullable=True,
+    )
     opened_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -153,4 +162,10 @@ class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
 
     __table_args__ = (
         Index("idx_voting_rounds_session_id", "legislative_session_id"),
+        Index(
+            "uq_one_open_round_per_session", 
+            "legislative_session_id", 
+            unique=True, 
+            postgresql_where=text("status = 'VOTING_OPEN'")
+        ),
     )

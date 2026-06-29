@@ -28,11 +28,6 @@ export interface VotingTally {
   suggested_result: string;
 }
 
-export interface ProclamationPayload {
-  affirmative: number;
-  negative: number;
-  abstentions: number;
-}
 
 export interface SessionCreate {
   title: string;
@@ -72,8 +67,8 @@ export class PresidencyService {
     return this.http.get<VotingTally>(`/voting-rounds/${roundId}/tally`);
   }
 
-  proclaimVotingRound(roundId: string, payload: ProclamationPayload): Observable<any> {
-    return this.http.post(`/voting-rounds/${roundId}/proclaim`, payload);
+  proclaimVotingRound(roundId: string): Observable<any> {
+    return this.http.post(`/voting-rounds/${roundId}/proclaim`, {});
   }
 
   rectifyVotingRound(roundId: string): Observable<any> {

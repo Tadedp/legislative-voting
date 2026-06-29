@@ -1,22 +1,19 @@
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
-from web3.exceptions import TimeExhausted
 
 from src.api.dependencies.auth_deps import get_current_user, check_access
 from src.api.dependencies.common_deps import DbSessionDep
-from src.api.exceptions import BadRequestException, ConflictException, InternalServerException, ServiceUnavailableException, NotFoundException
+from src.api.exceptions import BadRequestException, ConflictException, InternalServerException, NotFoundException
 from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.models.voting_round import RoundStatus
 from src.schemas.voting_round_schemas import (
     VotingRoundCreate,
-    VotingRoundProclaimRequest,
     VotingRoundResponse,
     VotingRoundUpdate,
 )
 from src.services import audit_ledger_service, voting_round_service
-from src.core.database import async_session_maker
 
 voting_round_router = APIRouter(
     tags=["Voting Rounds"],
@@ -159,8 +156,13 @@ async def open_voting_round(
         voting_round = await voting_round_service.open_voting_round(
             db_session, voting_round_id,
         )
+        await db_session.commit()
     except ValueError as exc:
+        await db_session.rollback()
         raise ConflictException(str(exc))
+    except Exception as exc:
+        await db_session.rollback()
+        raise InternalServerException(str(exc))
 
     response = VotingRoundResponse.model_validate(voting_round)
 
@@ -178,7 +180,7 @@ async def open_voting_round(
         manager.broadcast,
         "VOTING_ROUND_OPENED",
         {
-            "voting_round_id": str(voting_round_id),
+            "id": str(voting_round_id),
             "stage": voting_round.stage.value,
             "specific_reference": voting_round.specific_reference,
             "agenda_item": {
@@ -225,8 +227,13 @@ async def close_voting_round(
         voting_round = await voting_round_service.close_voting_round(
             db_session, voting_round_id,
         )
+        await db_session.commit()
     except ValueError as exc:
+        await db_session.rollback()
         raise ConflictException(str(exc))
+    except Exception as exc:
+        await db_session.rollback()
+        raise InternalServerException(str(exc))
 
     response = VotingRoundResponse.model_validate(voting_round)
 
@@ -234,7 +241,7 @@ async def close_voting_round(
         manager.broadcast,
         "VOTING_ROUND_CLOSED",
         {
-            "voting_round_id": str(voting_round_id),
+            "id": str(voting_round_id),
             "legislative_session_id": str(
                 response.legislative_session_id,
             ),
@@ -257,28 +264,21 @@ async def proclaim_voting_round(
     db_session: DbSessionDep,
     background_tasks: BackgroundTasks,
     voting_round_id: uuid.UUID,
-    body: VotingRoundProclaimRequest,
 ) -> VotingRoundResponse:
     try:
         voting_round = await voting_round_service.proclaim_voting_round(
             db_session,
             voting_round_id,
-            affirmative=body.affirmative,
-            negative=body.negative,
-            abstentions=body.abstentions,
         )
         
-        # Schedule the blockchain anchoring in the background to prevent 504 Timeouts
-        async def background_anchor(round_id: uuid.UUID, nominal: bool):
-            async with async_session_maker() as db:
-                await audit_ledger_service.anchor_and_snapshot_round(
-                    db, 
-                    round_id, 
-                    nominal
-                )
-                await db.commit()
-                
-        background_tasks.add_task(background_anchor, voting_round_id, voting_round.is_nominal)
+        # Execute the blockchain anchoring synchronously before commit
+        if voting_round.status == RoundStatus.RESOLVED:
+            await audit_ledger_service.anchor_and_snapshot_round(
+                db_session, 
+                voting_round_id, 
+                voting_round.is_nominal
+            )
+
         
         await db_session.commit()
     
@@ -305,7 +305,7 @@ async def proclaim_voting_round(
         manager.broadcast,
         event_type,
         {
-            "voting_round_id": str(voting_round_id),
+            "id": str(voting_round_id),
             "result": response.result,
             "new_status": response.status.value,
             "legislative_session_id": str(response.legislative_session_id),
@@ -338,8 +338,13 @@ async def rectify_voting_round(
         new_round = await voting_round_service.rectify_voting_round(
             db_session, voting_round_id,
         )
+        await db_session.commit()
     except ValueError as exc:
+        await db_session.rollback()
         raise ConflictException(str(exc))
+    except Exception as exc:
+        await db_session.rollback()
+        raise InternalServerException(str(exc))
 
     response = VotingRoundResponse.model_validate(new_round)
 
@@ -348,7 +353,7 @@ async def rectify_voting_round(
         manager.broadcast,
         "VOTING_ROUND_ABORTED",
         {
-            "voting_round_id": str(voting_round_id),
+            "id": str(voting_round_id),
             "new_draft_id": str(new_round.id),
             "legislative_session_id": str(response.legislative_session_id),
         },

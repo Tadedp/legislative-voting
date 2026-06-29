@@ -55,8 +55,10 @@ class BlockchainNotaryService:
         try:
             tx_hash = await self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             receipt = await self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            if receipt.get("status") != 1:
+                raise Exception(f"Transaction failed on-chain: {receipt.get('transactionHash', b'').hex()}")
             return {
-                "transaction_hash": receipt.get("transactionHash", "").hex(),
+                "transaction_hash": receipt.get("transactionHash", b"").hex(),
                 "block_number": receipt.get("blockNumber", 0)
             }
         except ContractCustomError as e:

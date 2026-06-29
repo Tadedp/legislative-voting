@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import generate_provisioning_token
+from src.core.websocket import manager
 from src.models.legislator import Legislator
 from src.repositories import legislator_repository
 
@@ -111,6 +112,8 @@ async def soft_delete_legislator(
 
     if legislator.device is not None:
         legislator.device.deleted_at = now
+        if legislator.device.device_token:
+            await manager.force_disconnect_device(legislator.device.device_token)
 
     await db.flush()
     await db.refresh(legislator)

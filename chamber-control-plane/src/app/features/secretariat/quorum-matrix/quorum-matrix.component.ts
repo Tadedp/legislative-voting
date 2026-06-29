@@ -8,6 +8,8 @@ import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { StateSyncService } from '../../../core/services/state-sync.service';
 import { SecretariatService, SessionAttendanceEnriched } from '../../../core/services/secretariat.service';
+import { Subject, of } from 'rxjs';
+import { concatMap, catchError, tap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-quorum-matrix',
@@ -25,7 +27,7 @@ export class QuorumMatrixComponent {
   // Computed signal to determine if the matrix is locked
   readonly isVotingOpen = computed(() => this.stateSync.votingRound()?.status === 'VOTING_OPEN');
   
-  private readonly stateSync = inject(StateSyncService);
+
   
   attendanceList: SessionAttendanceEnriched[] = [];
   isLoading = false;
@@ -35,9 +37,11 @@ export class QuorumMatrixComponent {
     { label: 'Ausente', value: 'ABSENT' }
   ];
 
+  private updateSubject = new Subject<{record: SessionAttendanceEnriched, sessionId: string}>();
+
   constructor() {
-    // Whenever the session changes, reload the attendance
     effect(() => {
+      this.stateSync.attendanceUpdated();
       const session = this.stateSync.sessionState();
       if (session) {
         this.loadAttendance(session.id);
@@ -45,15 +49,25 @@ export class QuorumMatrixComponent {
         this.attendanceList = [];
       }
     });
-    
-    // Listen for WebSocket broadcast to dynamically reload
-    effect(() => {
-      this.stateSync.attendanceUpdated(); // Access signal to trigger dependency
-      const session = this.stateSync.sessionState();
-      if (session?.id) {
-        this.loadAttendance(session.id);
-      }
-    });
+
+    this.updateSubject.pipe(
+      concatMap(({record, sessionId}) => 
+        this.secretariatService.updateAttendance(sessionId, record.legislator_id, record.status as any).pipe(
+          tap(() => {
+            this.messageService.add({ 
+              severity: 'success', 
+              summary: 'Asistencia Actualizada', 
+              detail: `${record.full_name} marcado como ${record.status}` 
+            });
+          }),
+          catchError((err) => {
+            this.messageService.add({ severity: 'error', summary: 'Fallo al Actualizar', detail: 'No se pudo actualizar el estado de asistencia.' });
+            this.loadAttendance(sessionId);
+            return of(null);
+          })
+        )
+      )
+    ).subscribe();
   }
 
   loadAttendance(sessionId: string) {
@@ -71,27 +85,15 @@ export class QuorumMatrixComponent {
   }
 
   onStatusChange(record: SessionAttendanceEnriched) {
-    // If the system is locked physically by a voting round, revert and ignore
     if (this.isVotingOpen()) {
+      record.status = record.status === 'PRESENT' ? 'ABSENT' : 'PRESENT';
+      this.messageService.add({ severity: 'warn', summary: 'Votación Activa', detail: 'No se puede modificar la asistencia durante una votación.' });
       return;
     }
 
     const session = this.stateSync.sessionState();
     if (!session) return;
 
-    this.secretariatService.updateAttendance(session.id, record.legislator_id, record.status as any).subscribe({
-      next: () => {
-        this.messageService.add({ 
-          severity: 'success', 
-          summary: 'Asistencia Actualizada', 
-          detail: `${record.full_name} marcado como ${record.status}` 
-        });
-      },
-      error: (err) => {
-        this.messageService.add({ severity: 'error', summary: 'Fallo al Actualizar', detail: 'No se pudo actualizar el estado de asistencia.' });
-        // Revert the local change
-        this.loadAttendance(session.id);
-      }
-    });
+    this.updateSubject.next({ record, sessionId: session.id });
   }
 }

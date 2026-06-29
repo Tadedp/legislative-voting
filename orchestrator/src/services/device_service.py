@@ -85,7 +85,7 @@ async def enroll_device(
 async def wipe_device(
     db: AsyncSession,
     device_id: uuid.UUID,
-) -> tuple[Device, str]:
+) -> Device:
     device = await device_repository.get_by_id(db, device_id)
 
     if device is None or device.deleted_at is not None:
@@ -101,4 +101,4 @@ async def wipe_device(
     await manager.force_disconnect_device(old_device_token)
 
     await db.flush()
-    return device, old_device_token
+    return device

@@ -40,16 +40,8 @@ data class DeviceEnrollRequest(
  */
 @Serializable
 data class NominalVoteRequest(
-    @SerialName("voting_round_id")
-    val votingRoundId: String,
-
-    @SerialName("legislator_id")
-    val legislatorId: String,
-
-    @SerialName("vote_value")
-    val voteValue: String,
-
-    val timestamp: Long,
+    @SerialName("raw_payload_string")
+    val rawPayloadString: String,
 
     @SerialName("cryptographic_signature")
     val cryptographicSignature: String
@@ -63,30 +55,16 @@ data class NominalVoteRequest(
  */
 @Serializable
 data class NonNominalVoteRequest(
-    @SerialName("voting_round_id")
-    val votingRoundId: String,
-    @SerialName("legislator_id")
-    val legislatorId: String,
-    @SerialName("vote_value")
-    val voteValue: String,
-    @SerialName("salt")
-    val salt: String,
-    @SerialName("timestamp")
-    val timestamp: Long,
+    @SerialName("raw_payload_string")
+    val rawPayloadString: String,
     @SerialName("cryptographic_signature")
     val cryptographicSignature: String
 )
 
 @Serializable
 data class TieBreakerVoteRequest(
-    @SerialName("voting_round_id")
-    val votingRoundId: String,
-    @SerialName("legislator_id")
-    val legislatorId: String,
-    @SerialName("vote_value")
-    val voteValue: String,
-    @SerialName("timestamp")
-    val timestamp: Long,
+    @SerialName("raw_payload_string")
+    val rawPayloadString: String,
     @SerialName("cryptographic_signature")
     val cryptographicSignature: String
 )

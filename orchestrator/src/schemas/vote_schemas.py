@@ -7,40 +7,21 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.models.nominal_vote import VoteValue
 
 class NominalVote(BaseModel):
-    voting_round_id: uuid.UUID
-    legislator_id: uuid.UUID
-    vote_value: VoteValue
-    timestamp: Annotated[
-        int,
-        Field(gt=0, description="Unix epoch milliseconds"),
-    ]
+    raw_payload_string: str
     cryptographic_signature: Annotated[
         str,
         Field(min_length=1),
     ]
 
 class NonNominalVote(BaseModel):
-    voting_round_id: uuid.UUID
-    legislator_id: uuid.UUID
-    vote_value: VoteValue
-    salt: str
-    timestamp: Annotated[
-        int,
-        Field(gt=0, description="Unix epoch milliseconds"),
-    ]
+    raw_payload_string: str
     cryptographic_signature: Annotated[
         str,
         Field(min_length=1),
     ]
 
 class TieBreakerVote(BaseModel):
-    voting_round_id: uuid.UUID
-    legislator_id: uuid.UUID
-    vote_value: VoteValue
-    timestamp: Annotated[
-        int,
-        Field(gt=0, description="Unix epoch milliseconds"),
-    ]
+    raw_payload_string: str
     cryptographic_signature: Annotated[
         str,
         Field(min_length=1),

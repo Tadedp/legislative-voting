@@ -1,13 +1,12 @@
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
-from math import ceil
+from decimal import Decimal, ROUND_CEILING
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 
-from src.models.agenda_item import ItemStatus
+from src.models.agenda_item import AgendaItem, ItemStatus
 from src.models.legislative_session import PresidentType
 from src.models.nominal_vote import VoteValue
 from src.models.non_nominal_voter import NonNominalVoter
@@ -49,7 +48,11 @@ def calculate_round_result(
             return "PASSED"
         return "FAILED"
 
-    required = ceil(float(denominator) * float(threshold) / 100.0)
+    if threshold == Decimal(50):
+        required = (denominator // 2) + 1
+    else:
+        required_decimal = (Decimal(denominator) * threshold / Decimal("100.0")).to_integral_value(rounding=ROUND_CEILING)
+        required = int(required_decimal)
 
     if affirmative >= required:
         return "PASSED"
@@ -178,7 +181,9 @@ async def open_voting_round(
     db: AsyncSession,
     round_id: uuid.UUID,
 ) -> VotingRound:
-    voting_round = await voting_round_repository.get_by_id(db, round_id)
+    stmt = select(VotingRound).with_for_update().where(VotingRound.id == round_id)
+    result = await db.execute(stmt)
+    voting_round = result.scalar_one_or_none()
 
     if voting_round is None or voting_round.deleted_at is not None:
         raise ValueError("Voting round not found.")
@@ -226,7 +231,9 @@ async def close_voting_round(
     db: AsyncSession,
     round_id: uuid.UUID,
 ) -> VotingRound:
-    voting_round = await voting_round_repository.get_by_id(db, round_id)
+    stmt = select(VotingRound).where(VotingRound.id == round_id).with_for_update()
+    result = await db.execute(stmt)
+    voting_round = result.scalar_one_or_none()
 
     if voting_round is None or voting_round.deleted_at is not None:
         raise ValueError("Voting round not found.")
@@ -243,12 +250,10 @@ async def close_voting_round(
 async def proclaim_voting_round(
     db: AsyncSession,
     round_id: uuid.UUID,
-    *,
-    affirmative: int | None = None,
-    negative: int | None = None,
-    abstentions: int | None = None,
 ) -> VotingRound:
-    voting_round = await voting_round_repository.get_by_id(db, round_id)
+    stmt = select(VotingRound).where(VotingRound.id == round_id).with_for_update()
+    result = await db.execute(stmt)
+    voting_round = result.scalar_one_or_none()
 
     if voting_round is None or voting_round.deleted_at is not None:
         raise ValueError("Voting round not found.")
@@ -273,40 +278,21 @@ async def proclaim_voting_round(
         aff = vote_counts.get(VoteValue.AFFIRMATIVE, 0)
         neg = vote_counts.get(VoteValue.NEGATIVE, 0)
     else:
-        if affirmative is None or negative is None:
-            # We can compute it if not provided
-            vote_counts = await vote_repository.count_non_nominal_tallies_by_round(db, round_id)
-            aff = vote_counts.get(VoteValue.AFFIRMATIVE, 0)
-            neg = vote_counts.get(VoteValue.NEGATIVE, 0)
-        else:
-            aff = affirmative
-            neg = negative
-            
-            abst = abstentions or 0
-            
-            stmt = select(func.count(NonNominalVoter.id)).where(
-                NonNominalVoter.voting_round_id == round_id,
-            )
-            total_votes_cast = await db.scalar(stmt)
-            if aff + neg + abst != total_votes_cast:
-                raise ValueError("El recuento de votos no coincide con la cantidad de recibos de sufragio.")
+        vote_counts = await vote_repository.count_non_nominal_tallies_by_round(db, round_id)
+        aff = vote_counts.get(VoteValue.AFFIRMATIVE, 0)
+        neg = vote_counts.get(VoteValue.NEGATIVE, 0)
+        abst = vote_counts.get(VoteValue.ABSTENTION, 0)
+        
+        stmt = select(func.count(NonNominalVoter.id)).where(
+            NonNominalVoter.voting_round_id == round_id,
+        )
+        total_votes_cast = await db.scalar(stmt)
+        
+        if aff + neg + abst != total_votes_cast:
+            raise ValueError("El recuento de votos no coincide con la cantidad de recibos de sufragio.")
 
     total_members = await legislator_repository.count_active_legislators(db)
     quorum_present = voting_round.certified_quorum_count or voting_round.quorum_present_count or 0
-
-    if (
-        leg_session.pres_type == PresidentType.EX_OFFICIO
-        and leg_session.presiding_officer_id is not None
-    ):
-        total_members -= 1
-        quorum_present -= 1
-    elif (
-        leg_session.pres_type == PresidentType.LEGISLATOR
-        and not voting_round.president_votes_ordinarily
-        and leg_session.presiding_officer_id is not None
-    ):
-        total_members -= 1
-        quorum_present -= 1
 
     quorum_present = max(quorum_present, 0)
     total_members = max(total_members, 0)
@@ -328,7 +314,9 @@ async def proclaim_voting_round(
         voting_round.status = RoundStatus.RESOLVED
 
         # Update parent AgendaItem
-        agenda_item = await agenda_item_repository.get_by_id(db, voting_round.agenda_item_id)
+        stmt_ai = select(AgendaItem).where(AgendaItem.id == voting_round.agenda_item_id).with_for_update()
+        result_ai = await db.execute(stmt_ai)
+        agenda_item = result_ai.scalar_one_or_none()
         if agenda_item:
             if result == "PASSED":
                 if voting_round.stage == RoundStage.GENERAL:
@@ -346,7 +334,9 @@ async def rectify_voting_round(
     db: AsyncSession,
     round_id: uuid.UUID,
 ) -> VotingRound:
-    voting_round = await voting_round_repository.get_by_id(db, round_id)
+    stmt = select(VotingRound).where(VotingRound.id == round_id).with_for_update()
+    result = await db.execute(stmt)
+    voting_round = result.scalar_one_or_none()
 
     if voting_round is None or voting_round.deleted_at is not None:
         raise ValueError("Voting round not found.")
@@ -366,6 +356,7 @@ async def rectify_voting_round(
         president_votes_ordinarily=voting_round.president_votes_ordinarily,
         stage=voting_round.stage,
         specific_reference=voting_round.specific_reference,
+        time_limit_seconds=voting_round.time_limit_seconds,
         status=RoundStatus.DRAFT,
     )
     

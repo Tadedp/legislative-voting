@@ -1,11 +1,10 @@
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, Depends, status
 
 from src.api.dependencies.auth_deps import check_access
 from src.api.dependencies.common_deps import DbSessionDep
 from src.api.exceptions import BadRequestException, UnauthorizedException, ForbiddenException, NotFoundException
-from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.schemas.legislator_schemas import DeviceResponse
 from src.schemas.device_enrollment_schemas import DeviceEnrollRequest, DeviceEnrollResponse
@@ -55,23 +54,15 @@ async def enroll_device(
 )
 async def wipe_device(
     db_session: DbSessionDep,
-    background_tasks: BackgroundTasks,
     device_id: uuid.UUID,
 ) -> DeviceResponse:
     try:
-        device, old_device_token = await device_service.wipe_device(
+        device = await device_service.wipe_device(
             db_session, device_id,
         )
     except ValueError as exc:
         raise NotFoundException(str(exc))
 
     response = DeviceResponse.model_validate(device)
-
-    background_tasks.add_task(
-        manager.send_to_device,
-        old_device_token,
-        "DEVICE_WIPE_COMMAND",
-        {"device_id": str(device_id)},
-    )
 
     return response

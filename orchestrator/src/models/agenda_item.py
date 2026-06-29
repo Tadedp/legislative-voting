@@ -51,12 +51,12 @@ class AgendaItem(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
     )
     parliamentary_stage: Mapped[ParliamentaryStage] = mapped_column(
         Enum(ParliamentaryStage, name="parliamentary_stage"),
-        server_default=text(ParliamentaryStage.INITIAL),
+        server_default=text("'INITIAL'"),
         nullable=False,
     )
     status: Mapped[ItemStatus] = mapped_column(
         Enum(ItemStatus, name="item_status"),
-        server_default=text(ItemStatus.DRAFT),
+        server_default=text("'DRAFT'"),
         nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(

@@ -2,7 +2,7 @@ import { Injectable, inject, DestroyRef, signal, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { retry, timer, Subscription, repeat } from 'rxjs';
+import { retry, timer, Subscription, repeat, timeout } from 'rxjs';
 import { 
   LegislativeSession, 
   ActiveAgendaItem, 
@@ -43,6 +43,7 @@ export class StateSyncService {
       const user = this.auth.currentUser();
       if (user) {
         if (!this.socket$ || this.socket$.closed) {
+          this.wsSubscription?.unsubscribe();
           this.initializeWebSocket();
         }
       } else {
@@ -61,13 +62,12 @@ export class StateSyncService {
     }
     if (this.rehydrationSub) {
       this.rehydrationSub.unsubscribe();
-      this.rehydrationSub = undefined;
+      this.rehydrationSub = null;
     }
   }
 
   private initializeWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // When using proxy in dev server, window.location.host is localhost:4200
     const wsUrl = `${protocol}//${window.location.host}/ws/state`;
 
     this.socket$ = webSocket<OrchestratorEvent>({
@@ -76,7 +76,15 @@ export class StateSyncService {
         next: () => this.onConnectionEstablished()
       },
       closeObserver: {
-        next: () => this.onConnectionLost()
+        next: (closeEvent: CloseEvent) => {
+          if (closeEvent && closeEvent.code === 1008) {
+            console.warn('WebSocket Policy Violation (1008). Logging out.');
+            this.auth.logout();
+            this.router.navigate(['/auth/login']);
+          } else {
+            this.onConnectionLost();
+          }
+        }
       }
     });
 
@@ -117,11 +125,11 @@ export class StateSyncService {
 
     this.rehydrationSub = this.http.get<CurrentStateResponse>('/legislative-sessions/current')
       .pipe(
+        timeout(5000),
         retry({
           count: Infinity,
           delay: (error, retryCount) => {
-            if (error.status === 404) throw error;
-            if (error.status === 401 || error.status === 403) throw error;
+            if (error.status !== 0 && error.status !== undefined && error.status < 500) throw error;
             this.isConnectionStable.set(false);
             console.warn(`Rehydration failed. Retrying in ${Math.min(1000 * Math.pow(2, retryCount), 30000)}ms...`);
             return timer(Math.min(1000 * Math.pow(2, retryCount), 30000));
@@ -158,7 +166,6 @@ export class StateSyncService {
           }
           if (err.status === 404) {
             // A 404 means there is no active legislative session yet.
-            // This is a normal state. We must unlock the UI so the Presidency can start one.
             this.sessionState.set(null);
             this.activeItem.set(null);
             this.votingRound.set(null);
@@ -197,8 +204,12 @@ export class StateSyncService {
         break;
       case 'VOTING_ROUND_OPENED':
         this.votingRound.update(current => {
-          if (current && current.id === event.data?.id) {
-            if (current.status === 'VOTING_CLOSED' || this.terminalStates.includes(current.status)) {
+          if (current) {
+            if (current.id === event.data?.id) {
+              if (current.status === 'VOTING_CLOSED' || this.terminalStates.includes(current.status)) {
+                return current;
+              }
+            } else {
               return current;
             }
           }
@@ -206,7 +217,6 @@ export class StateSyncService {
         });
         break;
       case 'VOTING_ROUND_CLOSED':
-        // The backend payload only has ids, so we merge the state manually
         this.votingRound.update(current => {
           if (!current || current.id !== event.data?.id) return current;
           if (current.status !== 'VOTING_OPEN') return current;
@@ -221,6 +231,7 @@ export class StateSyncService {
         });
         break;
       case 'VOTING_ROUND_RESOLVED':
+      case 'TIE_BREAKER_VOTE_CAST':
         this.votingRound.update(current => {
           if (!current || current.id !== event.data?.id) return current;
           if (current.status !== 'VOTING_CLOSED' && current.status !== 'TIED') return current;
@@ -234,8 +245,8 @@ export class StateSyncService {
           return null;
         });
         break;
-      case 'VOTE_CAST':
-        // Placeholder for future vote tally implementation
+      case 'NOMINAL_VOTE_CAST':
+      case 'NON_NOMINAL_VOTE_CAST':
         break;
       case 'QUORUM_WARNING':
         console.warn(`Quorum warning received: ${event.data?.connected}/${event.data?.minimum_required}`);

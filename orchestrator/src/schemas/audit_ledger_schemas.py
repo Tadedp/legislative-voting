@@ -21,6 +21,14 @@ class VerifiedParticipant(BaseModel):
     signature: str
     timestamp: int
 
+class TieBreakerVote(BaseModel):
+    legislator_id: str
+    legislator_name: str
+    public_key_pem: str
+    value: str
+    signature: str
+    timestamp: int
+
 class TallyPayload(BaseModel):
     voting_round_id: str
     agenda_item_title: str
@@ -39,3 +47,4 @@ class TallyPayload(BaseModel):
         list[VerifiedParticipant],
         Field(default_factory=list),
     ]
+    tie_breaker_vote: TieBreakerVote | None = None

@@ -9,12 +9,12 @@ from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHas
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_public_key
 from starlette.concurrency import run_in_threadpool
 from structlog import get_logger
 from asn1crypto import core
 
-from src.core.config import EnvironmentOption, settings
+from src.core.config import settings
 
 log = get_logger(__name__)
 
@@ -50,30 +50,21 @@ async def verify_password(plain: str, hashed: str) -> bool:
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
 
-def generate_session_token() -> str:
-    return secrets.token_hex(32)
-
 def generate_provisioning_token() -> str:
     """Generates an 8-character Base32 OTPT (A-Z, 2-7)."""
     token_bytes = secrets.token_bytes(5)
     return base64.b32encode(token_bytes).decode('utf-8')
 
-def extract_public_key_from_cert(cert_b64: str) -> str:
-    """Extract the uncompressed secp256r1 public key hex from a Base64-encoded X.509 certificate.
-
-    Strictly expects DER decoding. Raises ValueError on any parsing or curve mismatch.
-    """
+def extract_hex_from_pem_public_key(pem_string: str) -> str:
+    """Extract the uncompressed secp256r1 public key hex directly from a PEM string."""
     try:
-        cert_bytes = base64.b64decode(cert_b64)
-        cert = x509.load_der_x509_certificate(cert_bytes)
+        public_key = load_pem_public_key(pem_string.encode('utf-8'))
     except Exception as exc:
-        raise ValueError(f"Invalid Base64 or DER certificate data: {exc}") from exc
-
-    public_key = cert.public_key()
+        raise ValueError(f"Invalid PEM public key data: {exc}") from exc
 
     if not isinstance(public_key, ec.EllipticCurvePublicKey):
         raise ValueError(
-            "Certificate does not contain an Elliptic Curve public key.",
+            "Key is not an Elliptic Curve public key.",
         )
 
     if not isinstance(public_key.curve, ec.SECP256R1):
@@ -142,7 +133,7 @@ def validate_attestation_chain(certificate_chain: list[str]) -> None:
         
     google_root = x509.load_pem_x509_certificate(GOOGLE_ROOT_CA_PEM.encode())
     
-    certs = []
+    certs: list[x509.Certificate] = []
     for cert_b64 in certificate_chain:
         try:
             cert_bytes = base64.b64decode(cert_b64)
@@ -181,10 +172,13 @@ def validate_attestation_chain(certificate_chain: list[str]) -> None:
             raise ValueError(f"Intermediate certificate at index {i} is missing BasicConstraints.")
 
     for i in range(len(certs) - 1):
-        leaf = certs[i]
-        issuer = certs[i + 1]
+        leaf: x509.Certificate = certs[i]
+        issuer: x509.Certificate = certs[i + 1]
         
         issuer_public_key = issuer.public_key()
+        signature_hash_algorithm = leaf.signature_hash_algorithm
+        if signature_hash_algorithm is None:
+            raise ValueError(f"Signature hash algorithm is missing for certificate at index {i}.")
         
         try:
             if isinstance(issuer_public_key, rsa.RSAPublicKey):
@@ -192,13 +186,13 @@ def validate_attestation_chain(certificate_chain: list[str]) -> None:
                     leaf.signature,
                     leaf.tbs_certificate_bytes,
                     padding.PKCS1v15(),
-                    leaf.signature_hash_algorithm,
+                    signature_hash_algorithm,
                 )
             elif isinstance(issuer_public_key, ec.EllipticCurvePublicKey):
                 issuer_public_key.verify(
                     leaf.signature,
                     leaf.tbs_certificate_bytes,
-                    ec.ECDSA(leaf.signature_hash_algorithm),
+                    ec.ECDSA(signature_hash_algorithm),
                 )
             else:
                 raise ValueError("Unsupported public key type.")
@@ -299,19 +293,6 @@ def validate_attestation_properties(extension_data: dict[str, Any], provisioning
         pkg_name_bytes = pkg_info[0].native
         if pkg_name_bytes.decode('utf-8') == package_name:
             found_package = True
-            
-            if settings.app.ENVIRONMENT == EnvironmentOption.PRODUCTION:
-                expected_apk_hash = settings.security.EXPECTED_APK_HASH
-                if not expected_apk_hash:
-                    raise ValueError("EXPECTED_APK_HASH must be set in production environment.")
-                
-                if len(pkg_info) > 1 and len(pkg_info[1]) > 0:
-                    apk_hash_bytes = pkg_info[1][0].native
-                    apk_hash_hex = apk_hash_bytes.hex().lower()
-                    if apk_hash_hex != expected_apk_hash.lower():
-                        raise ValueError(f"App identity proof failed. APK hash mismatch.")
-                else:
-                    raise ValueError("App identity proof failed. No APK signature hash found in attestation.")
             break
             
     if not found_package:

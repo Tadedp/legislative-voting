@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Header, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Cookie, Header, WebSocket, WebSocketDisconnect
 from structlog import get_logger
 
 from src.api.dependencies.auth_deps import get_current_user
@@ -50,6 +50,7 @@ async def ws_state(
         device_token,
         legislator_id=legislator_id,
     )
+    await check_quorum_and_warn()
 
     try:
         while True:
@@ -68,8 +69,9 @@ async def check_quorum_and_warn() -> None:
         total_members = await legislator_repository.count_active_legislators(db_session)
     
     quorum_min = total_members // 2 + 1
-    if manager.active_count < quorum_min:
+    active_legislators = len(manager.connected_legislator_ids)
+    if active_legislators < quorum_min:
         await manager.broadcast("QUORUM_WARNING", {
-            "active_terminals": manager.active_count,
+            "active_terminals": active_legislators,
             "minimum_required": quorum_min,
         })

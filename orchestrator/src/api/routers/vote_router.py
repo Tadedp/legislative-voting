@@ -8,8 +8,8 @@ from src.api.dependencies.common_deps import DbSessionDep
 from src.api.exceptions import (
     BadRequestException,
     ConflictException,
+    InternalServerException,
 )
-from src.core.config import settings
 from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.models.voting_round import RoundStatus
@@ -47,10 +47,7 @@ async def cast_nominal_vote(
     try:
         vote = await vote_service.cast_nominal_vote(
             db_session,
-            voting_round_id=body.voting_round_id,
-            legislator_id=body.legislator_id,
-            vote_value=body.vote_value,
-            timestamp=body.timestamp,
+            raw_payload_string=body.raw_payload_string,
             cryptographic_signature=body.cryptographic_signature,
         )
     except ValueError as exc:
@@ -86,13 +83,9 @@ async def cast_non_nominal_vote(
     body: NonNominalVote,
 ) -> Response:
     try:
-        await vote_service.cast_non_nominal_vote(
+        vote_data = await vote_service.cast_non_nominal_vote(
             db_session,
-            voting_round_id=body.voting_round_id,
-            legislator_id=body.legislator_id,
-            vote_value=body.vote_value,
-            salt=body.salt,
-            timestamp=body.timestamp,
+            raw_payload_string=body.raw_payload_string,
             cryptographic_signature=body.cryptographic_signature,
         )
     except ValueError as exc:
@@ -102,8 +95,8 @@ async def cast_non_nominal_vote(
         manager.broadcast,
         "NON_NOMINAL_VOTE_CAST",
         {
-            "voting_round_id": str(body.voting_round_id),
-            "legislator_id": str(body.legislator_id),
+            "voting_round_id": str(vote_data["voting_round_id"]),
+            "legislator_id": str(vote_data["legislator_id"]),
         },
     )
 
@@ -129,7 +122,14 @@ async def get_voting_round_tally(
     except ValueError as exc:
         raise ConflictException(str(exc))
 
-    if voting_round.status not in [RoundStatus.VOTING_CLOSED, RoundStatus.RESOLVED, RoundStatus.TIED]:
+    allowed_statuses = [
+        RoundStatus.VOTING_CLOSED,
+        RoundStatus.RESOLVED,
+        RoundStatus.TIED,
+        RoundStatus.ABORTED,
+        RoundStatus.VOIDED
+    ]
+    if voting_round.status not in allowed_statuses:
         raise BadRequestException("Tally is only available after voting is closed.")
 
     if voting_round.is_nominal:
@@ -140,6 +140,14 @@ async def get_voting_round_tally(
     aff = vote_counts.get(VoteValue.AFFIRMATIVE, 0)
     neg = vote_counts.get(VoteValue.NEGATIVE, 0)
     abs_count = vote_counts.get(VoteValue.ABSTENTION, 0)
+
+    if voting_round.status in [RoundStatus.RESOLVED, RoundStatus.ABORTED, RoundStatus.VOIDED]:
+        return VotingRoundTallyResponse(
+            affirmative=aff,
+            negative=neg,
+            abstentions=abs_count,
+            suggested_result=voting_round.result or "UNKNOWN",
+        )
 
     # Compute suggested result
     voting_type = await voting_round_service.get_voting_type_for_round(db_session, voting_round_id)
@@ -200,14 +208,16 @@ async def cast_tie_breaker_vote(
     try:
         voting_round = await vote_service.cast_tie_breaker_vote(
             db_session,
-            voting_round_id=body.voting_round_id,
-            legislator_id=body.legislator_id,
-            vote_value=body.vote_value,
-            timestamp=body.timestamp,
+            raw_payload_string=body.raw_payload_string,
             cryptographic_signature=body.cryptographic_signature,
         )
+        await db_session.commit()
     except ValueError as exc:
+        await db_session.rollback()
         raise ConflictException(str(exc))
+    except Exception as exc:
+        await db_session.rollback()
+        raise InternalServerException(str(exc))
 
     response = VotingRoundResponse.model_validate(voting_round)
 
@@ -215,7 +225,7 @@ async def cast_tie_breaker_vote(
         manager.broadcast,
         "TIE_BREAKER_VOTE_CAST",
         {
-            "voting_round_id": str(body.voting_round_id),
+            "id": str(voting_round.id),
             "result": response.result,
             "new_status": response.status.value,
             "legislative_session_id": str(response.legislative_session_id),

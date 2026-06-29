@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks
 
 from src.api.dependencies.auth_deps import check_access, get_current_user
 from src.api.dependencies.common_deps import DbSessionDep
-from src.api.exceptions import NotFoundException
+from src.api.exceptions import NotFoundException, InternalServerException
 from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.schemas.attendance_schemas import AttendanceBulkUpdate, SessionAttendanceResponse, SessionAttendanceEnriched
@@ -58,6 +58,7 @@ async def bulk_update_attendance(
             legislative_session_id,
             updates=updates, # type: ignore
         )
+        await db_session.commit()
         
         # Broadcast the update
         background_tasks.add_task(
@@ -68,6 +69,10 @@ async def bulk_update_attendance(
             }
         )
     except ValueError as exc:
+        await db_session.rollback()
         raise NotFoundException(str(exc))
+    except Exception as exc:
+        await db_session.rollback()
+        raise InternalServerException(str(exc))
 
     return [SessionAttendanceResponse.model_validate(r) for r in records]

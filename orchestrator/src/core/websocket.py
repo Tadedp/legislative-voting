@@ -8,7 +8,7 @@ from structlog import get_logger
 
 log = get_logger(__name__)
 
-background_tasks = set()
+background_tasks: set[asyncio.Task[Any]] = set()
 
 class ConnectionManager:
     """Manages WebSocket connections for all connected voter terminals and dashboards.
@@ -22,7 +22,7 @@ class ConnectionManager:
         self._active_edge_devices: dict[str, WebSocket] = {}
         self._token_to_legislator_id: dict[str, uuid.UUID] = {}
         self._active_dashboards: set[WebSocket] = set()
-        self._queues: dict[WebSocket, asyncio.Queue] = {}
+        self._queues: dict[WebSocket, asyncio.Queue[Any]] = {}
 
     async def connect(
         self,
@@ -33,7 +33,7 @@ class ConnectionManager:
     ) -> None:
         """Accept a WebSocket and register it as an active Edge or passive client."""
         await websocket.accept()
-        queue: asyncio.Queue = asyncio.Queue()
+        queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=1000)
         self._queues[websocket] = queue
         
         worker_task = asyncio.create_task(self._worker(websocket, queue))
@@ -68,7 +68,10 @@ class ConnectionManager:
         try:
             if websocket in self._queues:
                 queue = self._queues.pop(websocket)
-                queue.put_nowait(None)
+                try:
+                    queue.put_nowait(None)
+                except asyncio.QueueFull:
+                    pass
         except (KeyError, ValueError):
             pass
 
@@ -105,12 +108,18 @@ class ConnectionManager:
         websocket = self._active_edge_devices.get(device_token)
         if websocket:
             try:
+                wipe_payload: dict[str, Any] = {
+                    "event_type": "DEVICE_WIPE_COMMAND",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "data": {"reason": "force_disconnect"}
+                }
+                await websocket.send_json(wipe_payload)
                 await websocket.close()
             except Exception:
                 pass
             self.disconnect(websocket)
 
-    async def _worker(self, websocket: WebSocket, queue: asyncio.Queue) -> None:
+    async def _worker(self, websocket: WebSocket, queue: asyncio.Queue[Any]) -> None:
         """Dedicated background task to guarantee FIFO message delivery per client."""
         try:
             while True:
@@ -131,7 +140,10 @@ class ConnectionManager:
         """Queue the message for the websocket worker to send."""
         queue = self._queues.get(websocket)
         if queue is not None:
-            queue.put_nowait(message)
+            try:
+                queue.put_nowait(message)
+            except asyncio.QueueFull:
+                self.disconnect(websocket)
 
     async def broadcast(
         self,

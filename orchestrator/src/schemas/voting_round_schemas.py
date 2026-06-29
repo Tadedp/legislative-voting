@@ -35,34 +35,6 @@ class VotingRoundUpdate(BaseModel):
         Field(default=None, ge=1, description="Countdown timer in seconds"),
     ] = None
 
-class VotingRoundProclaimRequest(BaseModel):
-    affirmative: Annotated[
-        int | None,
-        Field(
-            default=None,
-            ge=0,
-            description=(
-                "Affirmative vote count (required for non-nominal rounds)"
-            ),
-        ),
-    ]
-    negative: Annotated[
-        int | None,
-        Field(
-            default=None,
-            ge=0,
-            description="Negative vote count (required for non-nominal rounds)",
-        ),
-    ]
-    abstentions: Annotated[
-        int | None,
-        Field(
-            default=None,
-            ge=0,
-            description="Abstention count (required for non-nominal rounds)",
-        ),
-    ]
-
 class VotingRoundResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

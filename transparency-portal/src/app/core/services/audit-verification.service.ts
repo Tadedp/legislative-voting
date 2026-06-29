@@ -28,7 +28,7 @@ export class AuditVerificationService {
   private readonly CONTRACT_ADDRESS = environment.contractAddress;
   
   private readonly ABI = [
-    "function rounds(string) view returns (uint256 timestamp, bool isNominal, bytes32 nominalMerkleRoot, bytes32 tallyMerkleRoot, bytes32 eligibilityMerkleRoot, bool isProclaimed)"
+    "function rounds(string) view returns (bytes32 nominalMerkleRoot, bytes32 tallyMerkleRoot, bytes32 eligibilityMerkleRoot, uint64 timestamp, bool isNominal, bool isProclaimed)"
   ];
 
   async verifyE2E(snapshot: any): Promise<void> {
@@ -40,10 +40,12 @@ export class AuditVerificationService {
       const provider = new ethers.JsonRpcProvider(this.RPC_URL);
       const contract = new ethers.Contract(this.CONTRACT_ADDRESS, this.ABI, provider);
       
+      const roundData = await contract['rounds'](snapshot.voting_round_id);
+      
       const onChainRound = {
-        nominalMerkleRoot: snapshot.nominal_merkle_root || ethers.ZeroHash,
-        tallyMerkleRoot: snapshot.tally_merkle_root || ethers.ZeroHash,
-        eligibilityMerkleRoot: snapshot.eligibility_merkle_root || ethers.ZeroHash
+        nominalMerkleRoot: roundData.nominalMerkleRoot || ethers.ZeroHash,
+        tallyMerkleRoot: roundData.tallyMerkleRoot || ethers.ZeroHash,
+        eligibilityMerkleRoot: roundData.eligibilityMerkleRoot || ethers.ZeroHash
       };
 
       this.progress.set(30);
@@ -56,31 +58,55 @@ export class AuditVerificationService {
       if (snapshot.is_nominal) {
         const leafHashes = snapshot.nominal_votes.map((vote: any) => {
           const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
-            ['string', 'string', 'string', 'string', 'uint256'],
-            [vote.legislator_name, vote.public_key_pem, vote.value, vote.signature, vote.timestamp]
+            ['string', 'string', 'string', 'string', 'string', 'uint256'],
+            [snapshot.voting_round_id, vote.legislator_name, vote.public_key_pem, vote.value, vote.signature, vote.timestamp]
           );
           return ethers.keccak256(encoded);
         });
+        
+        if (snapshot.tie_breaker_vote) {
+            const tb = snapshot.tie_breaker_vote;
+            const tbEncoded = ethers.AbiCoder.defaultAbiCoder().encode(
+                ['string', 'string', 'string', 'string', 'string', 'uint256'],
+                ["TIE_BREAKER", snapshot.voting_round_id, tb.legislator_id, tb.value, tb.signature, tb.timestamp]
+            );
+            leafHashes.push(ethers.keccak256(tbEncoded));
+        }
+        
         localNominalRoot = this.buildMerkleTree(leafHashes);
         
         this.progress.set(50);
         // Verify Signatures in batches
         const sigResult = await this.verifySignaturesBatched(snapshot.nominal_votes, true, snapshot);
         if (!sigResult) throw new Error("Signature verification failed for nominal voters.");
+        
+        if (snapshot.tie_breaker_vote) {
+            const tbResult = await this.verifySingleSignature(snapshot.tie_breaker_vote, true, snapshot);
+            if (!tbResult) throw new Error("Signature verification failed for tie-breaker vote.");
+        }
       } else {
         const tallyHashes = snapshot.anonymous_votes.map((vote: any) => {
           const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
-            ['string', 'string'],
-            [vote.value, vote.salt]
+            ['string', 'string', 'string'],
+            [snapshot.voting_round_id, vote.value, vote.salt]
           );
           return ethers.keccak256(encoded);
         });
+        
+        if (snapshot.tie_breaker_vote) {
+            const tb = snapshot.tie_breaker_vote;
+            const tbEncoded = ethers.AbiCoder.defaultAbiCoder().encode(
+                ['string', 'string', 'string', 'string', 'string', 'uint256'],
+                ["TIE_BREAKER", snapshot.voting_round_id, tb.legislator_id, tb.value, tb.signature, tb.timestamp]
+            );
+            tallyHashes.push(ethers.keccak256(tbEncoded));
+        }
         localTallyRoot = this.buildMerkleTree(tallyHashes);
 
         const eligHashes = snapshot.verified_participants.map((participant: any) => {
           const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
-            ['string', 'string', 'string', 'uint256'],
-            [participant.legislator_name, participant.public_key_pem, participant.signature, participant.timestamp]
+            ['string', 'string', 'string', 'string', 'string', 'uint256'],
+            ["ELIGIBILITY", snapshot.voting_round_id, participant.legislator_name, participant.public_key_pem, participant.signature, participant.timestamp]
           );
           return ethers.keccak256(encoded);
         });
@@ -90,6 +116,11 @@ export class AuditVerificationService {
         // Verify Signatures in batches
         const sigResult = await this.verifySignaturesBatched(snapshot.verified_participants, false, snapshot);
         if (!sigResult) throw new Error("Signature verification failed for anonymous voters.");
+        
+        if (snapshot.tie_breaker_vote) {
+            const tbResult = await this.verifySingleSignature(snapshot.tie_breaker_vote, true, snapshot);
+            if (!tbResult) throw new Error("Signature verification failed for tie-breaker vote.");
+        }
       }
 
       this.progress.set(90);
@@ -137,7 +168,8 @@ export class AuditVerificationService {
       const nextLevel = [];
       for (let i = 0; i < nodes.length; i += 2) {
         if (i + 1 === nodes.length) {
-          nextLevel.push(nodes[i]);
+          const pair = [nodes[i], nodes[i]];
+          nextLevel.push(ethers.keccak256(ethers.concat([pair[0], pair[1]])));
         } else {
           // CRITICAL: Sort pair before hashing
           const pair = [nodes[i], nodes[i+1]].sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));

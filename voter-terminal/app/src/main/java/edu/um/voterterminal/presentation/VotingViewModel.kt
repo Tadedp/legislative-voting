@@ -254,15 +254,13 @@ class VotingViewModel @Inject constructor(
                     ?: throw IllegalStateException("Legislator ID missing")
 
                 if (currentState.isNominal) {
-                    val unsignedRequest = NominalVoteRequest(
+                    val canonicalJson = PayloadCanonicalizer.buildNominalPayload(
                         votingRoundId = currentState.votingRoundId,
                         legislatorId = legislatorId,
                         voteValue = voteValue,
-                        timestamp = timestamp,
-                        cryptographicSignature = "" // Placeholder for canonicalization
+                        timestamp = timestamp
                     )
                     
-                    val canonicalJson = PayloadCanonicalizer.buildNominalPayload(unsignedRequest)
                     val signature = biometricSigner.authenticateAndSign(
                         activity,
                         canonicalJson.toByteArray(Charsets.UTF_8),
@@ -270,7 +268,10 @@ class VotingViewModel @Inject constructor(
                         currentState.specificReference ?: ""
                     )
                     
-                    val signedRequest = unsignedRequest.copy(cryptographicSignature = signature)
+                    val signedRequest = NominalVoteRequest(
+                        rawPayloadString = canonicalJson,
+                        cryptographicSignature = signature
+                    )
                     orchestratorClient.castNominalVote(signedRequest)
                     
                 } else {
@@ -284,16 +285,14 @@ class VotingViewModel @Inject constructor(
                     val saltString = String(saltArray)
                     _volatileSaltString.value = saltString
                     
-                    val unsignedRequest = NonNominalVoteRequest(
+                    val canonicalJson = PayloadCanonicalizer.buildNonNominalPayload(
                         votingRoundId = currentState.votingRoundId,
                         legislatorId = legislatorId,
                         voteValue = voteValue,
                         salt = saltString,
-                        timestamp = timestamp,
-                        cryptographicSignature = "" // Placeholder
+                        timestamp = timestamp
                     )
-                    
-                    val canonicalJson = PayloadCanonicalizer.buildNonNominalPayload(unsignedRequest)
+
                     val signature = biometricSigner.authenticateAndSign(
                         activity,
                         canonicalJson.toByteArray(Charsets.UTF_8),
@@ -301,7 +300,10 @@ class VotingViewModel @Inject constructor(
                         currentState.specificReference ?: ""
                     )
                     
-                    val signedRequest = unsignedRequest.copy(cryptographicSignature = signature)
+                    val signedRequest = NonNominalVoteRequest(
+                        rawPayloadString = canonicalJson,
+                        cryptographicSignature = signature
+                    )
                     orchestratorClient.castNonNominalVote(signedRequest)
                 }
                 
@@ -334,15 +336,13 @@ class VotingViewModel @Inject constructor(
                 val legislatorId = securePrefsManager.legislatorId
                     ?: throw IllegalStateException("Legislator ID missing")
 
-                val unsignedRequest = NominalVoteRequest(
+                val canonicalJson = PayloadCanonicalizer.buildTieBreakerPayload(
                     votingRoundId = currentState.votingRoundId,
                     legislatorId = legislatorId,
                     voteValue = voteValue,
-                    timestamp = timestamp,
-                    cryptographicSignature = "" // Placeholder for canonicalization
+                    timestamp = timestamp
                 )
 
-                val canonicalJson = PayloadCanonicalizer.buildTieBreakerPayload(unsignedRequest)
                 val signature = biometricSigner.authenticateAndSign(
                     activity,
                     canonicalJson.toByteArray(Charsets.UTF_8),
@@ -350,7 +350,10 @@ class VotingViewModel @Inject constructor(
                     currentState.specificReference ?: ""
                 )
 
-                val signedRequest = unsignedRequest.copy(cryptographicSignature = signature)
+                val signedRequest = NominalVoteRequest(
+                    rawPayloadString = canonicalJson,
+                    cryptographicSignature = signature
+                )
                 orchestratorClient.castTieBreakerVote(signedRequest)
 
                 sessionManager.markTieBreakerSubmitted()

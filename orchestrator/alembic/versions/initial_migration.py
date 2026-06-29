@@ -5,7 +5,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '5bdff6778247'
+revision: str = '6fee2831e8c6'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -74,10 +74,10 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['legislator_id'], ['legislators.id'], name=op.f('fk_devices_legislator_id_legislators')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_devices')),
-    sa.UniqueConstraint('device_token', name=op.f('uq_devices_device_token')),
-    sa.UniqueConstraint('hardware_fingerprint', name=op.f('uq_devices_hardware_fingerprint')),
-    sa.UniqueConstraint('legislator_id', name=op.f('uq_devices_legislator_id'))
+    sa.UniqueConstraint('device_token', name=op.f('uq_devices_device_token'))
     )
+    op.create_index('uq_active_device_fingerprint', 'devices', ['hardware_fingerprint'], unique=True, postgresql_where=sa.text('deleted_at IS NULL'))
+    op.create_index('uq_active_device_legislator', 'devices', ['legislator_id'], unique=True, postgresql_where=sa.text('deleted_at IS NULL'))
     op.create_table('legislative_sessions',
     sa.Column('title', sa.Text(), nullable=False),
     sa.Column('status', sa.Enum('PENDING', 'ACTIVE', 'PAUSED', 'CLOSED', name='legislative_session_status'), server_default=sa.text("'PENDING'"), nullable=False),
@@ -129,6 +129,9 @@ def upgrade() -> None:
     sa.Column('time_limit_seconds', sa.Integer(), nullable=True),
     sa.Column('president_votes_ordinarily', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('tie_breaker_vote_value', sa.Text(), nullable=True),
+    sa.Column('tie_breaker_signature', sa.Text(), nullable=True),
+    sa.Column('tie_breaker_client_timestamp', sa.BigInteger(), nullable=True),
+    sa.Column('tie_breaker_device_id', sa.UUID(), nullable=True),
     sa.Column('opened_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -136,10 +139,12 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['agenda_item_id'], ['agenda_items.id'], name=op.f('fk_voting_rounds_agenda_item_id_agenda_items')),
     sa.ForeignKeyConstraint(['legislative_session_id'], ['legislative_sessions.id'], name=op.f('fk_voting_rounds_legislative_session_id_legislative_sessions')),
+    sa.ForeignKeyConstraint(['tie_breaker_device_id'], ['devices.id'], name=op.f('fk_voting_rounds_tie_breaker_device_id_devices')),
     sa.ForeignKeyConstraint(['voting_type_id'], ['voting_types.id'], name=op.f('fk_voting_rounds_voting_type_id_voting_types')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_voting_rounds'))
     )
     op.create_index('idx_voting_rounds_session_id', 'voting_rounds', ['legislative_session_id'], unique=False)
+    op.create_index('uq_one_open_round_per_session', 'voting_rounds', ['legislative_session_id'], unique=True, postgresql_where=sa.text("status = 'VOTING_OPEN'"))
     op.create_table('audit_ledgers',
     sa.Column('voting_round_id', sa.UUID(), nullable=False),
     sa.Column('is_nominal', sa.Boolean(), nullable=False),
@@ -159,7 +164,11 @@ def upgrade() -> None:
     sa.Column('legislator_id', sa.UUID(), nullable=False),
     sa.Column('vote_value', sa.Enum('AFFIRMATIVE', 'NEGATIVE', 'ABSTENTION', name='vote_value'), nullable=False),
     sa.Column('cryptographic_signature', sa.Text(), nullable=False),
+    sa.Column('raw_payload', sa.Text(), nullable=False),
+    sa.Column('device_id', sa.UUID(), nullable=False),
+    sa.Column('client_timestamp', sa.BigInteger(), nullable=False),
     sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['device_id'], ['devices.id'], name=op.f('fk_nominal_votes_device_id_devices')),
     sa.ForeignKeyConstraint(['legislator_id'], ['legislators.id'], name=op.f('fk_nominal_votes_legislator_id_legislators')),
     sa.ForeignKeyConstraint(['voting_round_id'], ['voting_rounds.id'], name=op.f('fk_nominal_votes_voting_round_id_voting_rounds')),
     sa.PrimaryKeyConstraint('event_id', name=op.f('pk_nominal_votes')),
@@ -179,7 +188,11 @@ def upgrade() -> None:
     sa.Column('voting_round_id', sa.UUID(), nullable=False),
     sa.Column('legislator_id', sa.UUID(), nullable=False),
     sa.Column('cryptographic_signature', sa.Text(), nullable=False),
+    sa.Column('raw_payload', sa.Text(), nullable=False),
+    sa.Column('device_id', sa.UUID(), nullable=False),
+    sa.Column('client_timestamp', sa.BigInteger(), nullable=False),
     sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['device_id'], ['devices.id'], name=op.f('fk_non_nominal_voters_device_id_devices')),
     sa.ForeignKeyConstraint(['legislator_id'], ['legislators.id'], name=op.f('fk_non_nominal_voters_legislator_id_legislators'), ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['voting_round_id'], ['voting_rounds.id'], name=op.f('fk_non_nominal_voters_voting_round_id_voting_rounds'), ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_non_nominal_voters')),
@@ -195,11 +208,14 @@ def downgrade() -> None:
     op.drop_table('non_nominal_tallies')
     op.drop_table('nominal_votes')
     op.drop_table('audit_ledgers')
+    op.drop_index('uq_one_open_round_per_session', table_name='voting_rounds', postgresql_where=sa.text("status = 'VOTING_OPEN'"))
     op.drop_index('idx_voting_rounds_session_id', table_name='voting_rounds')
     op.drop_table('voting_rounds')
     op.drop_table('session_attendances')
     op.drop_table('system_users_sessions')
     op.drop_table('legislative_sessions')
+    op.drop_index('uq_active_device_legislator', table_name='devices', postgresql_where=sa.text('deleted_at IS NULL'))
+    op.drop_index('uq_active_device_fingerprint', table_name='devices', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_table('devices')
     op.drop_table('voting_types')
     op.drop_index('uq_system_users_username_lower', table_name='system_users')
