@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 
 from src.models.agenda_item import AgendaItem, ItemStatus
-from src.models.legislative_session import PresidentType
 from src.models.nominal_vote import VoteValue
 from src.models.non_nominal_voter import NonNominalVoter
 from src.models.voting_round import RoundStage, RoundStatus, VotingRound
@@ -20,7 +19,11 @@ from src.repositories import (
     voting_round_repository,
     voting_type_repository,
 )
-from src.services.quorum_service import compute_quorum_minimum, get_certified_quorum
+from src.services.quorum_service import (
+    calculate_effective_denominator, 
+    compute_quorum_minimum, 
+    get_certified_quorum,
+)
 
 def calculate_round_result(
     affirmative: int,
@@ -29,11 +32,12 @@ def calculate_round_result(
     threshold: Decimal,
     quorum_present: int,
     total_members: int,
+    abstentions: int = 0,
 ) -> str:
     if calc_base == CalculationBase.VOTES_CAST:
         denominator = affirmative + negative
     elif calc_base == CalculationBase.MEMBERS_PRESENT:
-        denominator = quorum_present
+        denominator = max(quorum_present, affirmative + negative + abstentions)
     else:
         denominator = total_members
 
@@ -277,6 +281,7 @@ async def proclaim_voting_round(
         vote_counts = await vote_repository.count_nominal_votes_by_round(db, round_id)
         aff = vote_counts.get(VoteValue.AFFIRMATIVE, 0)
         neg = vote_counts.get(VoteValue.NEGATIVE, 0)
+        abst = vote_counts.get(VoteValue.ABSTENTION, 0)
     else:
         vote_counts = await vote_repository.count_non_nominal_tallies_by_round(db, round_id)
         aff = vote_counts.get(VoteValue.AFFIRMATIVE, 0)
@@ -293,9 +298,17 @@ async def proclaim_voting_round(
 
     total_members = await legislator_repository.count_active_legislators(db)
     quorum_present = voting_round.certified_quorum_count or voting_round.quorum_present_count or 0
-
-    quorum_present = max(quorum_present, 0)
-    total_members = max(total_members, 0)
+    
+    leg_session = await legislative_session_repository.get_by_id(db, voting_round.legislative_session_id)
+    if leg_session:
+        total_members = calculate_effective_denominator(
+            calculation_base=CalculationBase.TOTAL_MEMBERS,
+            president_type=leg_session.pres_type,
+            president_votes_ordinarily=voting_round.president_votes_ordinarily,
+            raw_quorum=quorum_present,
+            raw_total_members=total_members,
+            votes_cast=aff + neg,
+        )
 
     result = calculate_round_result(
         affirmative=aff,
@@ -304,6 +317,7 @@ async def proclaim_voting_round(
         threshold=Decimal(str(voting_type.approval_threshold)),
         quorum_present=quorum_present,
         total_members=total_members,
+        abstentions=abst,
     )
 
     voting_round.result = result

@@ -42,6 +42,10 @@ export class AuditVerificationService {
       
       const roundData = await contract['rounds'](snapshot.voting_round_id);
       
+      if (snapshot.is_nominal !== roundData.isNominal) {
+        throw new Error("Round type mismatch between on-chain data and local snapshot.");
+      }
+
       const onChainRound = {
         nominalMerkleRoot: roundData.nominalMerkleRoot || ethers.ZeroHash,
         tallyMerkleRoot: roundData.tallyMerkleRoot || ethers.ZeroHash,
@@ -61,7 +65,7 @@ export class AuditVerificationService {
             ['string', 'string', 'string', 'string', 'string', 'uint256'],
             [snapshot.voting_round_id, vote.legislator_name, vote.public_key_pem, vote.value, vote.signature, vote.timestamp]
           );
-          return ethers.keccak256(encoded);
+          return ethers.keccak256(ethers.concat(["0x00", encoded]));
         });
         
         if (snapshot.tie_breaker_vote) {
@@ -70,7 +74,7 @@ export class AuditVerificationService {
                 ['string', 'string', 'string', 'string', 'string', 'uint256'],
                 ["TIE_BREAKER", snapshot.voting_round_id, tb.legislator_id, tb.value, tb.signature, tb.timestamp]
             );
-            leafHashes.push(ethers.keccak256(tbEncoded));
+            leafHashes.push(ethers.keccak256(ethers.concat(["0x00", tbEncoded])));
         }
         
         localNominalRoot = this.buildMerkleTree(leafHashes);
@@ -90,7 +94,7 @@ export class AuditVerificationService {
             ['string', 'string', 'string'],
             [snapshot.voting_round_id, vote.value, vote.salt]
           );
-          return ethers.keccak256(encoded);
+          return ethers.keccak256(ethers.concat(["0x00", encoded]));
         });
         
         if (snapshot.tie_breaker_vote) {
@@ -99,7 +103,7 @@ export class AuditVerificationService {
                 ['string', 'string', 'string', 'string', 'string', 'uint256'],
                 ["TIE_BREAKER", snapshot.voting_round_id, tb.legislator_id, tb.value, tb.signature, tb.timestamp]
             );
-            tallyHashes.push(ethers.keccak256(tbEncoded));
+            tallyHashes.push(ethers.keccak256(ethers.concat(["0x00", tbEncoded])));
         }
         localTallyRoot = this.buildMerkleTree(tallyHashes);
 
@@ -108,7 +112,7 @@ export class AuditVerificationService {
             ['string', 'string', 'string', 'string', 'string', 'uint256'],
             ["ELIGIBILITY", snapshot.voting_round_id, participant.legislator_name, participant.public_key_pem, participant.signature, participant.timestamp]
           );
-          return ethers.keccak256(encoded);
+          return ethers.keccak256(ethers.concat(["0x00", encoded]));
         });
         localEligibilityRoot = this.buildMerkleTree(eligHashes);
         
@@ -169,11 +173,11 @@ export class AuditVerificationService {
       for (let i = 0; i < nodes.length; i += 2) {
         if (i + 1 === nodes.length) {
           const pair = [nodes[i], nodes[i]];
-          nextLevel.push(ethers.keccak256(ethers.concat([pair[0], pair[1]])));
+          nextLevel.push(ethers.keccak256(ethers.concat(["0x01", pair[0], pair[1]])));
         } else {
           // CRITICAL: Sort pair before hashing
           const pair = [nodes[i], nodes[i+1]].sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
-          nextLevel.push(ethers.keccak256(ethers.concat([pair[0], pair[1]])));
+          nextLevel.push(ethers.keccak256(ethers.concat(["0x01", pair[0], pair[1]])));
         }
       }
       nodes = nextLevel;

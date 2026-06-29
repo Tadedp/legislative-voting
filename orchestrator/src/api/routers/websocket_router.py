@@ -37,7 +37,7 @@ async def ws_state(
         
         try:
             async with db_session_factory() as db_session:
-                user = await get_current_user(request=FakeRequest(), db_session=db_session, cookie_token=session_id) # type: ignore
+                await get_current_user(request=FakeRequest(), db_session=db_session, cookie_token=session_id) # type: ignore
         except Exception:
             await websocket.close(code=1008, reason="Invalid session.")
             return

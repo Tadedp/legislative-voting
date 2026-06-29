@@ -54,11 +54,21 @@ data class NominalVoteRequest(
  * Auth is via cryptographic signature — no device token header.
  */
 @Serializable
+data class NonNominalVoteData(
+    @SerialName("vote_value")
+    val voteValue: String,
+    @SerialName("salt")
+    val salt: String
+)
+
+@Serializable
 data class NonNominalVoteRequest(
-    @SerialName("raw_payload_string")
-    val rawPayloadString: String,
-    @SerialName("cryptographic_signature")
-    val cryptographicSignature: String
+    @SerialName("eligibility_payload")
+    val eligibilityPayload: String,
+    @SerialName("eligibility_signature")
+    val eligibilitySignature: String,
+    @SerialName("vote_data")
+    val voteData: NonNominalVoteData
 )
 
 @Serializable

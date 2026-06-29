@@ -38,18 +38,6 @@ async def count_non_nominal_tallies_by_round(
     result = await db.execute(stmt)
     return {row[0]: row[1] for row in result.all()}
 
-async def count_non_nominal_voters_by_round(
-    db: AsyncSession,
-    voting_round_id: uuid.UUID,
-) -> int:
-    stmt = (
-        select(func.count())
-        .select_from(NonNominalVoter)
-        .where(NonNominalVoter.voting_round_id == voting_round_id)
-    )
-    result = await db.execute(stmt)
-    return result.scalar() or 0
-
 async def count_nominal_votes_by_round(
     db: AsyncSession,
     voting_round_id: uuid.UUID,

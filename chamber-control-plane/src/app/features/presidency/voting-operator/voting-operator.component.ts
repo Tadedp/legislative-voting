@@ -199,9 +199,10 @@ export class VotingOperatorComponent {
       rejectButtonStyleClass: 'p-button-text',
       accept: () => {
         this.presidencyService.rectifyVotingRound(round.id).subscribe({
-          next: () => {
+          next: (newRound) => {
             this.messageService.add({ severity: 'warn', summary: 'Rectificado', detail: 'Votación anulada exitosamente.' });
             this.currentTally.set(null);
+            this.stateSync.votingRound.set(null);
           },
           error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo rectificar la votación.' })
         });

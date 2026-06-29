@@ -45,10 +45,15 @@ async def cast_nominal_vote(
     legislator_id_str = data.get("legislator_id")
     voting_round_id_str = data.get("voting_round_id")
     vote_value_str = data.get("vote_value")
-    timestamp = data.get("timestamp")
+    raw_timestamp = data.get("timestamp")
     
-    if not all([legislator_id_str, voting_round_id_str, vote_value_str, timestamp]):
+    if not all([legislator_id_str, voting_round_id_str, vote_value_str, raw_timestamp]):
         raise ValueError("Faltan campos en el payload criptográfico.")
+        
+    try:
+        timestamp = int(raw_timestamp)
+    except (TypeError, ValueError):
+        raise ValueError("El timestamp debe ser un número entero válido.")
         
     legislator_id = uuid.UUID(legislator_id_str)
     voting_round_id = uuid.UUID(voting_round_id_str)
@@ -114,33 +119,42 @@ async def cast_nominal_vote(
 async def cast_non_nominal_vote(
     db_session: AsyncSession,
     *,
-    raw_payload_string: str,
-    cryptographic_signature: str,
+    eligibility_payload: str,
+    eligibility_signature: str,
+    vote_data: dict[str, Any],
 ) -> dict[str, Any]:
     try:
-        data = json.loads(raw_payload_string)
+        data = json.loads(eligibility_payload)
     except json.JSONDecodeError:
         raise ValueError("Payload JSON inválido.")
         
     legislator_id_str = data.get("legislator_id")
     voting_round_id_str = data.get("voting_round_id")
-    vote_value_str = data.get("vote_value")
-    salt = data.get("salt")
-    timestamp = data.get("timestamp")
+    raw_timestamp = data.get("timestamp")
     
-    if not all([legislator_id_str, voting_round_id_str, vote_value_str, salt, timestamp]):
-        raise ValueError("Faltan campos en el payload criptográfico.")
+    if not all([legislator_id_str, voting_round_id_str, raw_timestamp]):
+        raise ValueError("Faltan campos en el payload criptográfico de elegibilidad.")
+        
+    try:
+        timestamp = int(raw_timestamp)
+    except (TypeError, ValueError):
+        raise ValueError("El timestamp debe ser un número entero válido.")
         
     legislator_id = uuid.UUID(legislator_id_str)
     voting_round_id = uuid.UUID(voting_round_id_str)
+
+    vote_value_str = vote_data.get("vote_value")
+    salt = vote_data.get("salt")
+    if not vote_value_str or not salt:
+        raise ValueError("Faltan campos en la data del voto.")
     vote_value = VoteValue(vote_value_str)
 
     public_key_hex, device_id = await _get_device_hex_key(db_session, legislator_id)
 
     if not verify_secp256r1_signature(
         public_key_hex=public_key_hex,
-        payload=raw_payload_string.encode("utf-8"),
-        signature_hex=cryptographic_signature,
+        payload=eligibility_payload.encode("utf-8"),
+        signature_hex=eligibility_signature,
     ):
         raise ValueError("Falló la verificación de la firma criptográfica.")
 
@@ -176,8 +190,8 @@ async def cast_non_nominal_vote(
     voter = NonNominalVoter(
         voting_round_id=voting_round_id,
         legislator_id=legislator_id,
-        cryptographic_signature=cryptographic_signature,
-        raw_payload=raw_payload_string,
+        cryptographic_signature=eligibility_signature,
+        raw_payload=eligibility_payload,
         client_timestamp=timestamp,
         device_id=device_id,
     )
@@ -216,10 +230,15 @@ async def cast_tie_breaker_vote(
     legislator_id_str = data.get("legislator_id")
     voting_round_id_str = data.get("voting_round_id")
     vote_value_str = data.get("vote_value")
-    timestamp = data.get("timestamp")
+    raw_timestamp = data.get("timestamp")
     
-    if not all([legislator_id_str, voting_round_id_str, vote_value_str, timestamp]):
+    if not all([legislator_id_str, voting_round_id_str, vote_value_str, raw_timestamp]):
         raise ValueError("Faltan campos en el payload criptográfico.")
+        
+    try:
+        timestamp = int(raw_timestamp)
+    except (TypeError, ValueError):
+        raise ValueError("El timestamp debe ser un número entero válido.")
         
     legislator_id = uuid.UUID(legislator_id_str)
     voting_round_id = uuid.UUID(voting_round_id_str)

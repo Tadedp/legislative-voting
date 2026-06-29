@@ -13,12 +13,17 @@ class NominalVote(BaseModel):
         Field(min_length=1),
     ]
 
+class NonNominalVoteData(BaseModel):
+    vote_value: VoteValue
+    salt: str
+
 class NonNominalVote(BaseModel):
-    raw_payload_string: str
-    cryptographic_signature: Annotated[
+    eligibility_payload: str
+    eligibility_signature: Annotated[
         str,
         Field(min_length=1),
     ]
+    vote_data: NonNominalVoteData
 
 class TieBreakerVote(BaseModel):
     raw_payload_string: str

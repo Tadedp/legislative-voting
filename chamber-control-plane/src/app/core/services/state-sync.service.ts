@@ -171,7 +171,13 @@ export class StateSyncService {
             this.votingRound.set(null);
             this.isConnectionStable.set(true);
             this.eventBuffer = [];
+            return;
           }
+          
+          // Fallback handler for unhandled 4xx errors (e.g. 422, 400)
+          console.warn('Unhandled HTTP error during rehydration. Unlocking UI and dropping stale events.');
+          this.isConnectionStable.set(true);
+          this.eventBuffer = [];
         }
       });
   }
@@ -180,11 +186,11 @@ export class StateSyncService {
     if (!event || !event.event_type) return;
 
     if (!this.isConnectionStable() && !isReplaying) {
-      if (this.eventBuffer.length < 1000) {
-        this.eventBuffer.push(event);
-      } else {
-        console.warn('Event buffer overflow. Dropping event.');
+      if (this.eventBuffer.length >= 1000) {
+        console.warn('Event buffer overflow. Evicting oldest event.');
+        this.eventBuffer.shift();
       }
+      this.eventBuffer.push(event);
       return;
     }
 
@@ -206,11 +212,12 @@ export class StateSyncService {
         this.votingRound.update(current => {
           if (current) {
             if (current.id === event.data?.id) {
+              if (current.status === 'VOTING_OPEN') {
+                return current;
+              }
               if (current.status === 'VOTING_CLOSED' || this.terminalStates.includes(current.status)) {
                 return current;
               }
-            } else {
-              return current;
             }
           }
           return event.data;
@@ -234,15 +241,16 @@ export class StateSyncService {
       case 'TIE_BREAKER_VOTE_CAST':
         this.votingRound.update(current => {
           if (!current || current.id !== event.data?.id) return current;
-          if (current.status !== 'VOTING_CLOSED' && current.status !== 'TIED') return current;
+          if (current.status !== 'VOTING_CLOSED' && current.status !== 'TIED' && current.status !== 'VOTING_OPEN') return current;
           return { ...current, status: 'RESOLVED' };
         });
         break;
       case 'VOTING_ROUND_ABORTED':
-        // Void the round entirely so the President can start over
+      case 'VOTING_ROUND_VOIDED':
         this.votingRound.update(current => {
           if (!current || current.id !== event.data?.id) return current;
-          return null;
+          if (current.status !== 'VOTING_CLOSED' && current.status !== 'TIED' && current.status !== 'VOTING_OPEN') return current;
+          return { ...current, status: event.event_type === 'VOTING_ROUND_ABORTED' ? 'ABORTED' : 'VOIDED' };
         });
         break;
       case 'NOMINAL_VOTE_CAST':

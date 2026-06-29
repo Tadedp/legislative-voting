@@ -68,11 +68,11 @@ async def get_current_legislative_session(
         )
 
     if device_token is not None:
-        device = await get_device_by_token( # type: ignore
+        await get_device_by_token(
             x_device_token=device_token, db_session=db_session,
         )
     else:
-        user = await get_current_user(request=request, db_session=db_session, cookie_token=session_cookie) # type: ignore
+        await get_current_user(request=request, db_session=db_session, cookie_token=session_cookie)
 
     try:
         session, active_round, active_item = (

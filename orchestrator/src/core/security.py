@@ -272,7 +272,7 @@ def validate_attestation_properties(extension_data: dict[str, Any], provisioning
         raise ValueError("rootOfTrust (704) missing in teeEnforced")
         
     root_of_trust_seq = core.Sequence.load(root_of_trust_bytes)
-    if root_of_trust_seq[0].native != 0:
+    if root_of_trust_seq[2].native != 0:
         raise ValueError("verifiedBootState is not Verified (0)")
     if root_of_trust_seq[1].native is not True:
         raise ValueError("deviceLocked is not True")

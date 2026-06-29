@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, func, Text, text
+from sqlalchemy import Enum, ForeignKey, Text, text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -15,9 +15,10 @@ class NonNominalTally(Base):
     __tablename__ = "non_nominal_tallies"
 
     id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
         primary_key=True,
-        default=uuid.uuid7,
-        server_default=text("uuidv7()"),
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     voting_round_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("voting_rounds.id", ondelete="RESTRICT"),
@@ -29,11 +30,6 @@ class NonNominalTally(Base):
     )
     salt: Mapped[str] = mapped_column(
         Text,
-        nullable=False,
-    )
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
         nullable=False,
     )
 

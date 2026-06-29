@@ -3,8 +3,38 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.legislative_session import LegislativeSession, PresidentType
 from src.repositories import attendance_repository, legislator_repository
 
+from src.models.voting_type import CalculationBase
+
 def compute_quorum_minimum(total_members: int) -> int:
     return total_members // 2 + 1
+
+def calculate_effective_denominator(
+    calculation_base: CalculationBase,
+    president_type: PresidentType,
+    president_votes_ordinarily: bool,
+    raw_quorum: int,
+    raw_total_members: int,
+    votes_cast: int = 0,
+) -> int:
+    """Computes the mathematically correct denominator based on calculation_base."""
+    should_subtract = False
+    if president_type == PresidentType.EX_OFFICIO:
+        should_subtract = True
+    elif president_type == PresidentType.LEGISLATOR and not president_votes_ordinarily:
+        should_subtract = True
+
+    if calculation_base == CalculationBase.TOTAL_MEMBERS:
+        denominator = raw_total_members - (1 if should_subtract else 0)
+    elif calculation_base == CalculationBase.MEMBERS_PRESENT:
+        denominator = raw_quorum - (1 if should_subtract else 0)
+    elif calculation_base == CalculationBase.VOTES_CAST:
+        # For VOTES_CAST, the denominator is exactly the votes cast (affirmative + negative).
+        # The president deduction does not apply here because if they didn't vote, they aren't in votes_cast.
+        denominator = votes_cast
+    else:
+        denominator = raw_total_members - (1 if should_subtract else 0)
+
+    return max(denominator, 0)
 
 async def get_certified_quorum(
     db: AsyncSession,
@@ -13,33 +43,25 @@ async def get_certified_quorum(
     president_votes_ordinarily: bool,
 ) -> tuple[int, int]:
     """Computes the legally binding quorum snapshot based on the attendance ledger."""
-    quorum_present = await attendance_repository.count_present_by_session(
+    raw_quorum = await attendance_repository.count_present_by_session(
         db, leg_session.id,
     )
-    total_members = await legislator_repository.count_active_legislators(db)
+    raw_total = await legislator_repository.count_active_legislators(db)
 
-    should_subtract = False
+    quorum_present = calculate_effective_denominator(
+        CalculationBase.MEMBERS_PRESENT,
+        leg_session.pres_type,
+        president_votes_ordinarily,
+        raw_quorum,
+        raw_total,
+    )
+    
+    total_members = calculate_effective_denominator(
+        CalculationBase.TOTAL_MEMBERS,
+        leg_session.pres_type,
+        president_votes_ordinarily,
+        raw_quorum,
+        raw_total,
+    )
 
-    if (
-        leg_session.pres_type == PresidentType.EX_OFFICIO
-        and leg_session.presiding_officer_id is not None
-    ):
-        should_subtract = True
-    elif (
-        leg_session.pres_type == PresidentType.LEGISLATOR
-        and not president_votes_ordinarily
-        and leg_session.presiding_officer_id is not None
-    ):
-        # Legislator-president who does not vote ordinarily is
-        # mathematically treated as an ex-officio president.
-        should_subtract = True
-
-    if should_subtract and leg_session.presiding_officer_id is not None:
-        # Assuming the president is always marked PRESENT if they are presiding.
-        # If they aren't marked PRESENT, they shouldn't be presiding, but structurally
-        # we reduce the requirements.
-        if quorum_present > 0:
-            quorum_present -= 1
-        total_members -= 1
-
-    return max(quorum_present, 0), max(total_members, 0)
+    return quorum_present, total_members

@@ -48,19 +48,35 @@ async def enroll_device(
         raise ValueError(f"Fallo en la atestación: {str(exc)}")
 
     # 4. Biometric Check
-    identity_ok = await renaper_client.verify_identity(legislator.national_id, biometric_payload)
+    try:
+        identity_ok = await renaper_client.verify_identity(legislator.national_id, biometric_payload)
+    except Exception as exc:
+        # Burn the token on exception to prevent infinite retries
+        legislator.provisioning_token = None
+        legislator.provisioning_token_expires_at = None
+        legislator.provisioning_token_generated_at = None
+        await db.commit()
+        raise PermissionError(f"Error en el servicio biométrico: {str(exc)}") from exc
+
     if not identity_ok:
         # Burn the token on failure
         legislator.provisioning_token = None
         legislator.provisioning_token_expires_at = None
         legislator.provisioning_token_generated_at = None
-        await db.flush()
+        await db.commit()
         raise PermissionError("Fallo en la verificación de identidad biométrica.")
             
     # Extract PEM for signature verification
     public_key_pem = extract_public_key_pem_from_cert(certificate_chain[0])
 
-    # 5. Commit & Burn
+    # 5. Revoke Old Devices & Insert New
+    old_device = await device_repository.get_active_device_by_legislator_id(db, legislator.id)
+    if old_device:
+        old_device_token = old_device.device_token
+        old_device.deleted_at = now
+        old_device.device_token = f"REVOKED_{secrets.token_urlsafe(32)}"
+        await manager.force_disconnect_device(old_device_token)
+
     device_token = secrets.token_urlsafe(32)
     device = Device(
         legislator_id=legislator.id,

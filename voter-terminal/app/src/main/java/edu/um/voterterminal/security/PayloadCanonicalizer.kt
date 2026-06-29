@@ -34,15 +34,13 @@ object PayloadCanonicalizer {
     }
 
     /**
-     * Creates the canonical payload for a Non-Nominal Vote.
-     * Only includes the fields that are actually signed (excludes the signature itself).
+     * Creates the canonical payload for a Non-Nominal Vote (Eligibility Payload).
+     * Only includes identity and timing details. The actual vote intent is completely decoupled.
      */
-    fun buildNonNominalPayload(votingRoundId: String, legislatorId: String, voteValue: String, salt: String, timestamp: Long): String {
+    fun buildNonNominalEligibilityPayload(votingRoundId: String, legislatorId: String, timestamp: Long): String {
         val sortedMap = sortedMapOf(
             "legislator_id" to JsonPrimitive(legislatorId),
-            "salt" to JsonPrimitive(salt),
             "timestamp" to JsonPrimitive(timestamp),
-            "vote_value" to JsonPrimitive(voteValue),
             "voting_round_id" to JsonPrimitive(votingRoundId)
         )
         val jsonObject = JsonObject(sortedMap)

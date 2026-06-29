@@ -14,6 +14,7 @@ from src.core.websocket import manager
 from src.models.system_user import SystemUserRole
 from src.models.voting_round import RoundStatus
 from src.models.nominal_vote import VoteValue
+from src.models.voting_type import CalculationBase
 from src.schemas.vote_schemas import (
     NominalVote,
     NominalVoteResponse,
@@ -23,7 +24,9 @@ from src.schemas.vote_schemas import (
 )
 from src.schemas.voting_round_schemas import VotingRoundResponse
 from src.services import vote_service, voting_round_service
+from src.services.quorum_service import calculate_effective_denominator
 from src.repositories import vote_repository, legislative_session_repository, legislator_repository
+
 
 vote_router = APIRouter(
     tags=["Votes"],
@@ -85,8 +88,9 @@ async def cast_non_nominal_vote(
     try:
         vote_data = await vote_service.cast_non_nominal_vote(
             db_session,
-            raw_payload_string=body.raw_payload_string,
-            cryptographic_signature=body.cryptographic_signature,
+            eligibility_payload=body.eligibility_payload,
+            eligibility_signature=body.eligibility_signature,
+            vote_data=body.vote_data.model_dump(),
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
@@ -155,21 +159,17 @@ async def get_voting_round_tally(
     total_members = await legislator_repository.count_active_legislators(db_session)
     
     quorum_present = voting_round.certified_quorum_count or voting_round.quorum_present_count or 0
-    
-    # Mathematical adjustment similar to what resolve/proclaim does
-    from src.models.legislative_session import PresidentType
-    if leg_session and leg_session.presiding_officer_id is not None:
-        if leg_session.pres_type == PresidentType.EX_OFFICIO:
-            total_members -= 1
-            quorum_present -= 1
-        elif leg_session.pres_type == PresidentType.LEGISLATOR and not voting_round.president_votes_ordinarily:
-            total_members -= 1
-            quorum_present -= 1
-            
-    quorum_present = max(quorum_present, 0)
-    total_members = max(total_members, 0)
 
-    if voting_type:
+    if voting_type and leg_session:
+        total_members = calculate_effective_denominator(
+            calculation_base=CalculationBase.TOTAL_MEMBERS,
+            president_type=leg_session.pres_type,
+            president_votes_ordinarily=voting_round.president_votes_ordinarily,
+            raw_quorum=quorum_present,
+            raw_total_members=total_members,
+            votes_cast=aff + neg,
+        )
+
         suggested_result = voting_round_service.calculate_round_result(
             affirmative=aff,
             negative=neg,

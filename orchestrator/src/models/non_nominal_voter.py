@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, func, Text, UniqueConstraint, text, BigInteger
+from sqlalchemy import DateTime, ForeignKey, func, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -37,10 +37,6 @@ class NonNominalVoter(Base):
     )
     device_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("devices.id"),
-        nullable=False,
-    )
-    client_timestamp: Mapped[int] = mapped_column(
-        BigInteger,
         nullable=False,
     )
     timestamp: Mapped[datetime] = mapped_column(

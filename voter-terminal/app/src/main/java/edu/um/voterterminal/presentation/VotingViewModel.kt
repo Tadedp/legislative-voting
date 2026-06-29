@@ -12,6 +12,7 @@ import edu.um.voterterminal.data.local.SecurePrefsManager
 import edu.um.voterterminal.data.network.DeviceEnrollRequest
 import edu.um.voterterminal.data.network.NominalVoteRequest
 import edu.um.voterterminal.data.network.NonNominalVoteRequest
+import edu.um.voterterminal.data.network.NonNominalVoteData
 import edu.um.voterterminal.data.network.OrchestratorClient
 import edu.um.voterterminal.domain.SessionManager
 import edu.um.voterterminal.R
@@ -285,24 +286,26 @@ class VotingViewModel @Inject constructor(
                     val saltString = String(saltArray)
                     _volatileSaltString.value = saltString
                     
-                    val canonicalJson = PayloadCanonicalizer.buildNonNominalPayload(
+                    val canonicalEligibilityJson = PayloadCanonicalizer.buildNonNominalEligibilityPayload(
                         votingRoundId = currentState.votingRoundId,
                         legislatorId = legislatorId,
-                        voteValue = voteValue,
-                        salt = saltString,
                         timestamp = timestamp
                     )
 
                     val signature = biometricSigner.authenticateAndSign(
                         activity,
-                        canonicalJson.toByteArray(Charsets.UTF_8),
+                        canonicalEligibilityJson.toByteArray(Charsets.UTF_8),
                         voteValue,
                         currentState.specificReference ?: ""
                     )
                     
                     val signedRequest = NonNominalVoteRequest(
-                        rawPayloadString = canonicalJson,
-                        cryptographicSignature = signature
+                        eligibilityPayload = canonicalEligibilityJson,
+                        eligibilitySignature = signature,
+                        voteData = NonNominalVoteData(
+                            voteValue = voteValue,
+                            salt = saltString
+                        )
                     )
                     orchestratorClient.castNonNominalVote(signedRequest)
                 }

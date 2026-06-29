@@ -107,16 +107,12 @@ class ConnectionManager:
         """Forcefully disconnect an edge device by its token (e.g. upon wipe)."""
         websocket = self._active_edge_devices.get(device_token)
         if websocket:
-            try:
-                wipe_payload: dict[str, Any] = {
-                    "event_type": "DEVICE_WIPE_COMMAND",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "data": {"reason": "force_disconnect"}
-                }
-                await websocket.send_json(wipe_payload)
-                await websocket.close()
-            except Exception:
-                pass
+            wipe_payload: dict[str, Any] = {
+                "event_type": "DEVICE_WIPE_COMMAND",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "data": {"reason": "force_disconnect"}
+            }
+            await self._send_safe(websocket, wipe_payload)
             self.disconnect(websocket)
 
     async def _worker(self, websocket: WebSocket, queue: asyncio.Queue[Any]) -> None:
@@ -130,13 +126,15 @@ class ConnectionManager:
                 await websocket.send_json(message)
                 queue.task_done()
         except Exception:
+            pass
+        finally:
             try:
                 await websocket.close()
             except Exception:
                 pass
             self.disconnect(websocket)
 
-    async def _send_safe(self, websocket: WebSocket, message: dict[str, Any]) -> None:
+    def _send_safe(self, websocket: WebSocket, message: dict[str, Any]) -> None:
         """Queue the message for the websocket worker to send."""
         queue = self._queues.get(websocket)
         if queue is not None:
@@ -160,38 +158,7 @@ class ConnectionManager:
         all_connections = list(self._active_edge_devices.values()) + list(self._active_dashboards)
 
         for ws in all_connections:
-            await self._send_safe(ws, message)
-
-    async def send_to_device(
-        self,
-        device_token: str,
-        event_type: str,
-        data: dict[str, Any],
-    ) -> None:
-        """Send a targeted JSON event to a specific device."""
-        websocket = self._active_edge_devices.get(device_token)
-        if websocket is None:
-            log.error(
-                "ws.send_to_device.not_connected",
-                device_token_prefix=device_token[:8],
-            )
-            return
-
-        message: dict[str, Any] = {
-            "event_type": event_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "data": data,
-        }
-
-        try:
-            await self._send_safe(websocket, message)
-        except Exception:
-            log.error("Failed to send targeted message; disconnecting stale WS.")
-            try:
-                await websocket.close()
-            except Exception:
-                pass
-            self.disconnect(websocket)
+            self._send_safe(ws, message)
 
     @property
     def active_count(self) -> int:
