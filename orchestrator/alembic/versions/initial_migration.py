@@ -5,7 +5,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '6fee2831e8c6'
+revision: str = 'eb718bbab758'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -44,7 +44,7 @@ def upgrade() -> None:
     op.create_table('system_users',
     sa.Column('username', sa.Text(), nullable=False),
     sa.Column('password_hash', sa.Text(), nullable=False),
-    sa.Column('role', sa.Enum('ADMIN', 'PRESIDENCY', 'AUDITOR', 'SECRETARY', name='system_user_role'), nullable=False),
+    sa.Column('role', sa.Enum('ADMIN', 'PRESIDENCY', 'SECRETARY', name='system_user_role'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.UUID(), server_default=sa.text('uuidv7()'), nullable=False),
@@ -135,6 +135,8 @@ def upgrade() -> None:
     sa.Column('opened_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('ephemeral_public_key', sa.Text(), nullable=True),
+    sa.Column('ephemeral_private_key', sa.Text(), nullable=True),
     sa.Column('id', sa.UUID(), server_default=sa.text('uuidv7()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['agenda_item_id'], ['agenda_items.id'], name=op.f('fk_voting_rounds_agenda_item_id_agenda_items')),
@@ -175,13 +177,15 @@ def upgrade() -> None:
     sa.UniqueConstraint('voting_round_id', 'legislator_id', name='uq_nominal_votes_voting_round_legislator')
     )
     op.create_table('non_nominal_tallies',
-    sa.Column('id', sa.Uuid(), server_default=sa.text('uuidv7()'), nullable=False),
+    sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('voting_round_id', sa.UUID(), nullable=False),
     sa.Column('vote_value', sa.Enum('AFFIRMATIVE', 'NEGATIVE', 'ABSTENTION', name='vote_value'), nullable=False),
-    sa.Column('salt', sa.Text(), nullable=False),
-    sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('ephemeral_public_key', sa.Text(), nullable=False),
+    sa.Column('server_signature', sa.Text(), nullable=False),
+    sa.Column('vote_signature', sa.Text(), nullable=False),
     sa.ForeignKeyConstraint(['voting_round_id'], ['voting_rounds.id'], name=op.f('fk_non_nominal_tallies_voting_round_id_voting_rounds'), ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_non_nominal_tallies'))
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_non_nominal_tallies')),
+    sa.UniqueConstraint('ephemeral_public_key', name='uq_non_nominal_tallies_ephemeral_pub')
     )
     op.create_table('non_nominal_voters',
     sa.Column('id', sa.Uuid(), server_default=sa.text('uuidv7()'), nullable=False),
@@ -190,7 +194,6 @@ def upgrade() -> None:
     sa.Column('cryptographic_signature', sa.Text(), nullable=False),
     sa.Column('raw_payload', sa.Text(), nullable=False),
     sa.Column('device_id', sa.UUID(), nullable=False),
-    sa.Column('client_timestamp', sa.BigInteger(), nullable=False),
     sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['device_id'], ['devices.id'], name=op.f('fk_non_nominal_voters_device_id_devices')),
     sa.ForeignKeyConstraint(['legislator_id'], ['legislators.id'], name=op.f('fk_non_nominal_voters_legislator_id_legislators'), ondelete='RESTRICT'),

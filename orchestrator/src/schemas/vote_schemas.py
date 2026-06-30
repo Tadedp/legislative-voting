@@ -13,17 +13,6 @@ class NominalVote(BaseModel):
         Field(min_length=1),
     ]
 
-class NonNominalVoteData(BaseModel):
-    vote_value: VoteValue
-    salt: str
-
-class NonNominalVote(BaseModel):
-    eligibility_payload: str
-    eligibility_signature: Annotated[
-        str,
-        Field(min_length=1),
-    ]
-    vote_data: NonNominalVoteData
 
 class TieBreakerVote(BaseModel):
     raw_payload_string: str
@@ -47,3 +36,23 @@ class VotingRoundTallyResponse(BaseModel):
     negative: int
     abstentions: int
     suggested_result: str
+
+class VoteAuthorizeRequest(BaseModel):
+    legislator_id: uuid.UUID
+    voting_round_id: uuid.UUID
+    blinded_token: str
+    ecdsa_signature: str
+
+class VoteAuthorizeResponse(BaseModel):
+    signed_blinded_token: str
+
+class VoteCastRequest(BaseModel):
+    voting_round_id: uuid.UUID
+    vote_value: VoteValue
+    ephemeral_pub: str
+    server_signature: str
+    vote_signature: str
+
+class VoteCastResponse(BaseModel):
+    status: str
+    message: str

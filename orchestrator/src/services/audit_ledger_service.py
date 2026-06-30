@@ -76,7 +76,9 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
             tallies[tally.vote_value.name] += 1
             anonymous_votes.append(AnonymousVoteSchema(
                 value=tally.vote_value.name,
-                salt=tally.salt
+                ephemeral_pub=tally.ephemeral_public_key,
+                server_signature=tally.server_signature,
+                vote_signature=tally.vote_signature
             ))
             
         # Voters
@@ -95,11 +97,12 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
                 legislator_id=str(leg.id),
                 legislator_name=f"{leg.first_name} {leg.last_name}",
                 public_key_pem=pem,
+                blinded_token=voter.raw_payload,
                 signature=voter.cryptographic_signature,
-                timestamp=voter.client_timestamp
+                timestamp=int(voter.timestamp.timestamp() * 1000)
             ))
             
-        assert len(anonymous_votes) == len(verified_participants), "Integrity error: anonymous votes count does not match verified participants."
+        assert len(verified_participants) >= len(anonymous_votes), "Integrity error: tally votes exceed authorized participants."
         
     tie_breaker_vote = None
     if round_obj.tie_breaker_signature and round_obj.tie_breaker_vote_value:
@@ -139,7 +142,8 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
         nominal_votes=nominal_votes,
         anonymous_votes=anonymous_votes,
         verified_participants=verified_participants,
-        tie_breaker_vote=tie_breaker_vote
+        tie_breaker_vote=tie_breaker_vote,
+        ephemeral_public_key=round_obj.ephemeral_public_key
     )
     return payload
 
@@ -161,14 +165,14 @@ async def anchor_and_snapshot_round(db: AsyncSession, round_id: uuid.UUID, is_no
             leaves.append(MerkleTreeGenerator.hash_tie_breaker_leaf(str(round_id), tb.legislator_id, tb.value, tb.signature, tb.timestamp))
         nominal_root = MerkleTreeGenerator.generate_tree_root(leaves)
     else:
-        t_leaves = [MerkleTreeGenerator.hash_tally_leaf(str(round_id), v.value, v.salt) for v in payload.anonymous_votes]
+        t_leaves = [MerkleTreeGenerator.hash_tally_leaf(str(round_id), v.value, v.ephemeral_pub, v.server_signature, v.vote_signature) for v in payload.anonymous_votes]
         if payload.tie_breaker_vote:
             tb = payload.tie_breaker_vote
             t_leaves.append(MerkleTreeGenerator.hash_tie_breaker_leaf(str(round_id), tb.legislator_id, tb.value, tb.signature, tb.timestamp))
         tally_root = MerkleTreeGenerator.generate_tree_root(t_leaves)
         
         e_leaves = [
-            MerkleTreeGenerator.hash_eligibility_leaf(str(round_id), p.legislator_name, p.public_key_pem, p.signature, p.timestamp) 
+            MerkleTreeGenerator.hash_eligibility_leaf(str(round_id), p.legislator_name, p.public_key_pem, p.blinded_token, p.signature, p.timestamp) 
             for p in payload.verified_participants
         ]
         eligibility_root = MerkleTreeGenerator.generate_tree_root(e_leaves)

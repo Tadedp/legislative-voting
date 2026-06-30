@@ -43,7 +43,8 @@ import { SecretLedgerComponent } from '../secret-ledger/secret-ledger.component'
           <app-secret-ledger 
             *ngIf="!snapshotData.is_nominal" 
             [participants]="snapshotData.verified_participants"
-            [tallies]="snapshotData.anonymous_votes">
+            [tallies]="snapshotData.anonymous_votes"
+            [tieBreaker]="snapshotData.tie_breaker_vote">
           </app-secret-ledger>
         </div>
       </ng-container>

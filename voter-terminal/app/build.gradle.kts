@@ -78,6 +78,9 @@ dependencies {
     // Kotlinx Serialization
     implementation(libs.kotlinx.serialization.json)
 
+    // Cryptography - BouncyCastle
+    implementation("org.bouncycastle:bcprov-jdk15to18:1.78")
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

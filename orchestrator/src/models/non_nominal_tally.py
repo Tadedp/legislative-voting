@@ -1,7 +1,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, Text, text
+from sqlalchemy import Enum, ForeignKey, Text, text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,7 +28,15 @@ class NonNominalTally(Base):
         Enum(VoteValue, name="vote_value"),
         nullable=False,
     )
-    salt: Mapped[str] = mapped_column(
+    ephemeral_public_key: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+    server_signature: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+    vote_signature: Mapped[str] = mapped_column(
         Text,
         nullable=False,
     )
@@ -37,4 +45,8 @@ class NonNominalTally(Base):
         "VotingRound",
         back_populates="non_nominal_tallies",
         lazy="raise_on_sql",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("ephemeral_public_key", name="uq_non_nominal_tallies_ephemeral_pub"),
     )

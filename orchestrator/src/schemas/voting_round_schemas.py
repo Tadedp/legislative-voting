@@ -56,6 +56,7 @@ class VotingRoundResponse(BaseModel):
     closed_at: datetime | None = None
     created_at: datetime
     deleted_at: datetime | None = None
+    ephemeral_public_key: str | None = None
 
 class VotingRoundWithItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -77,5 +78,6 @@ class VotingRoundWithItemResponse(BaseModel):
     opened_at: datetime | None = None
     closed_at: datetime | None = None
     created_at: datetime
+    ephemeral_public_key: str | None = None
 
     agenda_item: AgendaItemResponse

@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from src.api.dependencies.auth_deps import check_access
 from src.api.dependencies.common_deps import DbSessionDep
@@ -18,9 +18,12 @@ from src.models.voting_type import CalculationBase
 from src.schemas.vote_schemas import (
     NominalVote,
     NominalVoteResponse,
-    NonNominalVote,
     TieBreakerVote,
     VotingRoundTallyResponse,
+    VoteAuthorizeRequest,
+    VoteAuthorizeResponse,
+    VoteCastRequest,
+    VoteCastResponse,
 )
 from src.schemas.voting_round_schemas import VotingRoundResponse
 from src.services import vote_service, voting_round_service
@@ -72,25 +75,65 @@ async def cast_nominal_vote(
     return response
 
 @vote_router.post(
-    "/votes/non-nominal",
-    status_code=status.HTTP_201_CREATED,
-    summary="Cast a non-nominal vote",
+    "/votes/authorize",
+    response_model=VoteAuthorizeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Authorize a non-nominal vote (Phase 1)",
     description=(
-        "Zero-trust: signed payload with plain-text vote. "
-        "The orchestrator stores the vote in decoupled ledgers."
+        "Zero-trust: Idempotent JIT Authorization. Verifies the Keystore ECDSA signature "
+        "and blind signs the token for Phase 2 without revealing intent."
     ),
 )
-async def cast_non_nominal_vote(
+async def authorize_vote(
     db_session: DbSessionDep,
     background_tasks: BackgroundTasks,
-    body: NonNominalVote,
-) -> Response:
+    body: VoteAuthorizeRequest,
+) -> VoteAuthorizeResponse:
     try:
-        vote_data = await vote_service.cast_non_nominal_vote(
+        signed_token = await vote_service.authorize_vote(
             db_session,
-            eligibility_payload=body.eligibility_payload,
-            eligibility_signature=body.eligibility_signature,
-            vote_data=body.vote_data.model_dump(),
+            legislator_id=body.legislator_id,
+            voting_round_id=body.voting_round_id,
+            blinded_token=body.blinded_token,
+            ecdsa_signature=body.ecdsa_signature,
+        )
+    except ValueError as exc:
+        raise ConflictException(str(exc))
+
+    background_tasks.add_task(
+        manager.broadcast,
+        "NON_NOMINAL_VOTE_AUTHORIZED",
+        {
+            "voting_round_id": str(body.voting_round_id),
+        },
+    )
+
+    return VoteAuthorizeResponse(signed_blinded_token=signed_token)
+
+
+@vote_router.post(
+    "/votes/cast",
+    response_model=VoteCastResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cast an anonymous vote (Phase 2)",
+    description=(
+        "Zero-trust: Anonymous vote cast via blind signatures. "
+        "Strictly contains NO legislator_id or biometric signature."
+    ),
+)
+async def cast_anonymous_vote(
+    db_session: DbSessionDep,
+    background_tasks: BackgroundTasks,
+    body: VoteCastRequest,
+) -> VoteCastResponse:
+    try:
+        await vote_service.cast_anonymous_vote(
+            db_session,
+            voting_round_id=body.voting_round_id,
+            vote_value=body.vote_value,
+            ephemeral_pub=body.ephemeral_pub,
+            server_signature=body.server_signature,
+            vote_signature=body.vote_signature,
         )
     except ValueError as exc:
         raise ConflictException(str(exc))
@@ -99,12 +142,11 @@ async def cast_non_nominal_vote(
         manager.broadcast,
         "NON_NOMINAL_VOTE_CAST",
         {
-            "voting_round_id": str(vote_data["voting_round_id"]),
-            "legislator_id": str(vote_data["legislator_id"]),
+            "voting_round_id": str(body.voting_round_id),
         },
     )
 
-    return Response(status_code=status.HTTP_201_CREATED)
+    return VoteCastResponse(status="success", message="Voto emitido anónimamente")
 
 @vote_router.get(
     "/voting-rounds/{voting_round_id}/tally",

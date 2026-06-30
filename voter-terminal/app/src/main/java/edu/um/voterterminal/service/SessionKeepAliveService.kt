@@ -78,7 +78,7 @@ class SessionKeepAliveService : Service() {
             orchestratorClient.observeState().collect { event ->
                 when (event.eventType) {
                     OrchestratorEvent.VOTING_ROUND_OPENED -> {
-                        val votingRoundId = event.data["voting_round_id"]?.jsonPrimitive?.content ?: ""
+                        val votingRoundId = event.data["id"]?.jsonPrimitive?.content ?: ""
                         val stage = event.data["stage"]?.jsonPrimitive?.content ?: "SINGLE"
                         val specificReference = event.data["specific_reference"]?.jsonPrimitive?.content
                         val allowsAbstentions = event.data["allows_abstentions"]?.jsonPrimitive?.boolean ?: true
@@ -111,7 +111,7 @@ class SessionKeepAliveService : Service() {
                         )
                     }
                     OrchestratorEvent.VOTING_ROUND_TIED -> {
-                        val votingRoundId = event.data["voting_round_id"]?.jsonPrimitive?.content ?: ""
+                        val votingRoundId = event.data["id"]?.jsonPrimitive?.content ?: ""
                         val presidingOfficerId = event.data["presiding_officer_id"]?.jsonPrimitive?.content
                         val legislatorId = securePrefsManager.legislatorId
 

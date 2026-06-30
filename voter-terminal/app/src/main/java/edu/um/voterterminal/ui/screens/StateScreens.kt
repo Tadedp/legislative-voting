@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import edu.um.voterterminal.R
 import edu.um.voterterminal.presentation.VotingState
+import edu.um.voterterminal.domain.AuthorizationState
 
 @Composable
 fun IdleScreen() {
@@ -67,7 +68,11 @@ fun IdleScreen() {
 }
 
 @Composable
-fun DebateIdleScreen(state: VotingState.DebateIdle) {
+fun DebateIdleScreen(
+    state: VotingState.DebateIdle,
+    authorizationState: AuthorizationState = AuthorizationState.Idle,
+    onAuthorizeClicked: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -125,6 +130,20 @@ fun DebateIdleScreen(state: VotingState.DebateIdle) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
+            }
+        }
+        
+        if (authorizationState is AuthorizationState.Required) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onAuthorizeClicked,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Acreditar Identidad", style = MaterialTheme.typography.titleLarge)
             }
         }
     }

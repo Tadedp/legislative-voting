@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { VerificationResult } from '../../../core/services/audit-verification.service';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { MessageModule } from 'primeng/message';
+import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
   selector: 'app-status-hero',
   standalone: true,
-  imports: [CommonModule, ProgressBarModule, MessageModule],
+  imports: [CommonModule, ProgressBarModule, MessageModule, TooltipModule],
   template: `
     <div class="card p-6 bg-white shadow-md rounded-xl">
       <h2 class="text-xl font-semibold mb-4">Estado de Verificación</h2>
@@ -26,6 +27,20 @@ import { MessageModule } from 'primeng/message';
 
       <div *ngIf="auditState === 'VERIFIED'">
         <p-message severity="success" text="VERIFICADO: Integridad Matemática Garantizada." styleClass="w-full justify-start text-lg"></p-message>
+        
+        <div *ngIf="details && !details.isNominal && details.eligibilityCount !== undefined && details.tallyCount !== undefined" class="mt-4">
+          <div *ngIf="details.eligibilityCount >= details.tallyCount" 
+               class="bg-green-600 text-white p-3 rounded shadow-md font-semibold text-center flex items-center justify-center cursor-help"
+               pTooltip="Las diferencias ocurren si legisladores se acreditan (Fase 1) pero no emiten su voto (Inacción Física). La integridad se mantiene siempre que Tokens >= Votos." 
+               tooltipPosition="bottom">
+            <i class="pi pi-shield mr-2 text-xl"></i> Integridad del Sistema: 0 votos forjados detectados ({{ details.tallyCount }} votos / {{ details.eligibilityCount }} acreditaciones)
+          </div>
+          <div *ngIf="details.eligibilityCount < details.tallyCount" 
+               class="bg-red-600 text-white p-3 rounded shadow-md font-semibold text-center flex items-center justify-center">
+            <i class="pi pi-times-circle mr-2 text-xl"></i> VIOLACIÓN DE INTEGRIDAD: Más votos en urna ({{ details.tallyCount }}) que acreditaciones ({{ details.eligibilityCount }}).
+          </div>
+        </div>
+
         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-green-50 p-4 rounded-lg border border-green-200" *ngIf="details">
           <div *ngIf="details.isNominal">
             <strong>Raíz Nominal Reconstruida:</strong> <br> <span class="font-mono text-xs break-all">{{ details.nominalRoot }}</span>

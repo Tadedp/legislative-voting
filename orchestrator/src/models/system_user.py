@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 class SystemUserRole(StrEnum):
     ADMIN = "ADMIN"
     PRESIDENCY = "PRESIDENCY"
-    AUDITOR = "AUDITOR"
     SECRETARY = "SECRETARY"
 
 class SystemUser(Base, UUIDPrimaryKeyMixin, SoftDeleteMixin):

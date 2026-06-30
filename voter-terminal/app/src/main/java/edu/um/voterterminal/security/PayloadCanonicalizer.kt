@@ -1,7 +1,6 @@
 package edu.um.voterterminal.security
 
 import edu.um.voterterminal.data.network.NominalVoteRequest
-import edu.um.voterterminal.data.network.NonNominalVoteRequest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -30,20 +29,6 @@ object PayloadCanonicalizer {
         )
         val jsonObject = JsonObject(sortedMap)
         // Json.encodeToString on JsonObject with default configuration produces no whitespace
-        return Json.encodeToString(jsonObject)
-    }
-
-    /**
-     * Creates the canonical payload for a Non-Nominal Vote (Eligibility Payload).
-     * Only includes identity and timing details. The actual vote intent is completely decoupled.
-     */
-    fun buildNonNominalEligibilityPayload(votingRoundId: String, legislatorId: String, timestamp: Long): String {
-        val sortedMap = sortedMapOf(
-            "legislator_id" to JsonPrimitive(legislatorId),
-            "timestamp" to JsonPrimitive(timestamp),
-            "voting_round_id" to JsonPrimitive(votingRoundId)
-        )
-        val jsonObject = JsonObject(sortedMap)
         return Json.encodeToString(jsonObject)
     }
 

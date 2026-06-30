@@ -14,13 +14,13 @@ class MerkleTreeGenerator:
         return keccak(b'\x00' + encoded)
         
     @classmethod
-    def hash_tally_leaf(cls, round_id: str, val: str, salt: str) -> bytes:
-        encoded = encode(['string', 'string', 'string'], [round_id, val, salt])
+    def hash_tally_leaf(cls, round_id: str, val: str, ephemeral_pub: str, server_sig: str, vote_sig: str) -> bytes:
+        encoded = encode(['string', 'string', 'string', 'string', 'string'], [round_id, val, ephemeral_pub, server_sig, vote_sig])
         return keccak(b'\x00' + encoded)
 
     @classmethod
-    def hash_eligibility_leaf(cls, round_id: str, name: str, pem: str, sig: str, ts: int) -> bytes:
-        encoded = encode(['string', 'string', 'string', 'string', 'string', 'uint256'], ["ELIGIBILITY", round_id, name, pem, sig, ts])
+    def hash_eligibility_leaf(cls, round_id: str, name: str, pem: str, blinded_token: str, sig: str, ts: int) -> bytes:
+        encoded = encode(['string', 'string', 'string', 'string', 'string', 'string', 'uint256'], ["ELIGIBILITY", round_id, name, pem, blinded_token, sig, ts])
         return keccak(b'\x00' + encoded)
 
     @classmethod

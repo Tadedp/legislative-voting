@@ -142,12 +142,19 @@ export class VotingOperatorComponent {
     const round = this.stateSync.votingRound();
     if (!round) return;
 
+    const tokensIssued = this.stateSync.tokensIssued();
+    const votesReceived = this.stateSync.votesReceived();
+
+    const isRaceCondition = votesReceived < tokensIssued;
+    
     this.confirmationService.confirm({
       target: event.target as EventTarget,
-      message: '¿Está seguro de que desea cerrar la votación?',
+      message: isRaceCondition 
+        ? 'Atención: Hay legisladores autorizados que aún no han emitido su voto. ¿Desea cerrar la urna de todos modos?'
+        : '¿Está seguro de que desea cerrar la votación?',
       header: 'Cerrar Votación',
       icon: 'pi pi-exclamation-triangle',
-      acceptButtonStyleClass: 'p-button-warning',
+      acceptButtonStyleClass: isRaceCondition ? 'p-button-danger' : 'p-button-warning',
       rejectButtonStyleClass: 'p-button-text',
       accept: () => {
         this.presidencyService.closeVotingRound(round.id).subscribe({

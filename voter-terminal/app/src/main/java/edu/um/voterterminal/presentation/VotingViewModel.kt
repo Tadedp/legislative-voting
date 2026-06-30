@@ -11,8 +11,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import edu.um.voterterminal.data.local.SecurePrefsManager
 import edu.um.voterterminal.data.network.DeviceEnrollRequest
 import edu.um.voterterminal.data.network.NominalVoteRequest
-import edu.um.voterterminal.data.network.NonNominalVoteRequest
-import edu.um.voterterminal.data.network.NonNominalVoteData
+import edu.um.voterterminal.data.network.VoteCastRequest
 import edu.um.voterterminal.data.network.OrchestratorClient
 import edu.um.voterterminal.domain.SessionManager
 import edu.um.voterterminal.R
@@ -21,7 +20,10 @@ import edu.um.voterterminal.security.EncryptionUtils
 import edu.um.voterterminal.security.KeyStoreManager
 import edu.um.voterterminal.security.CryptoUtils
 import edu.um.voterterminal.security.PayloadCanonicalizer
+import edu.um.voterterminal.security.BlindSignatureManager
 import edu.um.voterterminal.service.SessionKeepAliveService
+import edu.um.voterterminal.domain.JitAuthorizationManager
+import edu.um.voterterminal.domain.AuthorizationState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,10 +42,13 @@ class VotingViewModel @Inject constructor(
     private val orchestratorClient: OrchestratorClient,
     private val keyStoreManager: KeyStoreManager,
     private val encryptionUtils: EncryptionUtils,
-    private val biometricSigner: BiometricSigner
+    private val biometricSigner: BiometricSigner,
+    private val jitAuthorizationManager: JitAuthorizationManager,
+    private val blindSignatureManager: BlindSignatureManager
 ) : ViewModel() {
 
     val uiState: StateFlow<VotingState> = sessionManager.state
+    val authorizationState: StateFlow<AuthorizationState> = jitAuthorizationManager.authorizationState
 
     /** Exposes the locally stored legislator ID for presidential identity checks in the UI layer. */
     val legislatorId: String?
@@ -276,38 +281,30 @@ class VotingViewModel @Inject constructor(
                     orchestratorClient.castNominalVote(signedRequest)
                     
                 } else {
-                    val ephemeralPublicKey = currentState.ephemeralPublicKey
-                        ?: throw IllegalStateException("Ephemeral public key missing for non-nominal vote")
-                    // 1. Generate the authoritative secure salt
-                    val saltArray = CryptoUtils.generateVolatileSalt()
-                    volatileSaltArray = saltArray
+                    val serverPublicKeyPem = currentState.ephemeralPublicKey
+                        ?: throw IllegalStateException("Server ephemeral public key missing for anonymous vote")
                     
-                    // 2. Derive the string for UI display and payload
-                    val saltString = String(saltArray)
-                    _volatileSaltString.value = saltString
-                    
-                    val canonicalEligibilityJson = PayloadCanonicalizer.buildNonNominalEligibilityPayload(
-                        votingRoundId = currentState.votingRoundId,
-                        legislatorId = legislatorId,
-                        timestamp = timestamp
-                    )
-
-                    val signature = biometricSigner.authenticateAndSign(
-                        activity,
-                        canonicalEligibilityJson.toByteArray(Charsets.UTF_8),
-                        voteValue,
-                        currentState.specificReference ?: ""
-                    )
-                    
-                    val signedRequest = NonNominalVoteRequest(
-                        eligibilityPayload = canonicalEligibilityJson,
-                        eligibilitySignature = signature,
-                        voteData = NonNominalVoteData(
+                    try {
+                        // 1. Generate anonymous payload (unblind server signature & sign vote)
+                        val (ephemeralPubHex, serverSignatureHex, voteSignatureHex) = 
+                            blindSignatureManager.generateAnonymousPayload(voteValue, serverPublicKeyPem)
+                        
+                        // 2. Anonymization Jitter (100ms - 1500ms)
+                        kotlinx.coroutines.delay((100..1500).random().toLong())
+                        
+                        // 3. Submit Anonymous Request
+                        val request = VoteCastRequest(
+                            votingRoundId = currentState.votingRoundId,
                             voteValue = voteValue,
-                            salt = saltString
+                            ephemeralPub = ephemeralPubHex,
+                            serverSignature = serverSignatureHex,
+                            voteSignature = voteSignatureHex
                         )
-                    )
-                    orchestratorClient.castNonNominalVote(signedRequest)
+                        orchestratorClient.castAnonymousVote(request)
+                    } finally {
+                        // 4. Force wipe volatile memory
+                        blindSignatureManager.wipeVolatileMemory()
+                    }
                 }
                 
                 sessionManager.markVoteSubmitted()
@@ -361,6 +358,32 @@ class VotingViewModel @Inject constructor(
 
                 sessionManager.markTieBreakerSubmitted()
 
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * Authenticates the user's biometric identity and signs the blinded token for JIT Phase 1.
+     */
+    fun authorizeIdentity(activity: FragmentActivity) {
+        val currentState = authorizationState.value
+        if (currentState !is AuthorizationState.Required) return
+        
+        viewModelScope.launch {
+            try {
+                // Convert hex blinded token back to bytes for signing
+                val payloadBytes = currentState.blindedTokenHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                
+                val signature = biometricSigner.authenticateAndSign(
+                    activity,
+                    payloadBytes,
+                    "Acreditar",
+                    "Identidad"
+                )
+                
+                jitAuthorizationManager.submitSignature(signature)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

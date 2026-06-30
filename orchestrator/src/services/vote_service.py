@@ -1,8 +1,10 @@
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any
 
+from Crypto.PublicKey import RSA
+from Crypto.Signature import pss
+from Crypto.Hash import SHA256
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -116,45 +118,25 @@ async def cast_nominal_vote(
         raise ValueError("El legislador ya ha emitido un voto para esta ronda.")
 
 
-async def cast_non_nominal_vote(
+async def authorize_vote(
     db_session: AsyncSession,
     *,
-    eligibility_payload: str,
-    eligibility_signature: str,
-    vote_data: dict[str, Any],
-) -> dict[str, Any]:
-    try:
-        data = json.loads(eligibility_payload)
-    except json.JSONDecodeError:
-        raise ValueError("Payload JSON inválido.")
-        
-    legislator_id_str = data.get("legislator_id")
-    voting_round_id_str = data.get("voting_round_id")
-    raw_timestamp = data.get("timestamp")
-    
-    if not all([legislator_id_str, voting_round_id_str, raw_timestamp]):
-        raise ValueError("Faltan campos en el payload criptográfico de elegibilidad.")
-        
-    try:
-        timestamp = int(raw_timestamp)
-    except (TypeError, ValueError):
-        raise ValueError("El timestamp debe ser un número entero válido.")
-        
-    legislator_id = uuid.UUID(legislator_id_str)
-    voting_round_id = uuid.UUID(voting_round_id_str)
-
-    vote_value_str = vote_data.get("vote_value")
-    salt = vote_data.get("salt")
-    if not vote_value_str or not salt:
-        raise ValueError("Faltan campos en la data del voto.")
-    vote_value = VoteValue(vote_value_str)
-
+    legislator_id: uuid.UUID,
+    voting_round_id: uuid.UUID,
+    blinded_token: str,
+    ecdsa_signature: str,
+) -> str:
     public_key_hex, device_id = await _get_device_hex_key(db_session, legislator_id)
+
+    try:
+        blinded_token_bytes = bytes.fromhex(blinded_token)
+    except ValueError:
+        raise ValueError("El token cegado no tiene un formato hexadecimal válido.")
 
     if not verify_secp256r1_signature(
         public_key_hex=public_key_hex,
-        payload=eligibility_payload.encode("utf-8"),
-        signature_hex=eligibility_signature,
+        payload=blinded_token_bytes,
+        signature_hex=ecdsa_signature,
     ):
         raise ValueError("Falló la verificación de la firma criptográfica.")
 
@@ -162,58 +144,118 @@ async def cast_non_nominal_vote(
     if legislator is None or legislator.deleted_at is not None:
         raise ValueError("Legislador no encontrado.")
 
-    stmt = select(VotingRound).where(VotingRound.id == voting_round_id).with_for_update(read=True)
+    stmt = select(VotingRound).where(VotingRound.id == voting_round_id)
     result = await db_session.execute(stmt)
     voting_round = result.scalar_one_or_none()
     if voting_round is None or voting_round.deleted_at is not None:
         raise ValueError("Votación no encontrada.")
 
     if voting_round.is_nominal:
-        raise ValueError("Esta votación es nominal, no puede emitir un voto secreto.")
+        raise ValueError("Esta votación es nominal, no requiere autorización ciega.")
+
+    if voting_round.ephemeral_private_key is None:
+        raise ValueError("La votación no posee una clave efímera para firmas ciegas.")
+
+    # Apply raw RSA math (S = m^d mod n)
+    try:
+        rsa_key = RSA.import_key(voting_round.ephemeral_private_key)
+        m = int(blinded_token, 16)
+        s = rsa_key._decrypt(m)
+        signed_blinded_token_hex = format(s, 'x')
+        # Ensure even length hex string
+        if len(signed_blinded_token_hex) % 2 != 0:
+            signed_blinded_token_hex = '0' + signed_blinded_token_hex
+    except Exception as e:
+        raise ValueError(f"Falla en la firma ciega del servidor: {e}")
+
+    existing_voter = await vote_repository.get_non_nominal_voter(db_session, voting_round_id, legislator_id)
+    if existing_voter:
+        if existing_voter.raw_payload != blinded_token:
+            raise ValueError("El legislador ya fue autorizado con un token distinto. No se permiten múltiples tokens para prevenir el doble gasto.")
+        # If it matches exactly, proceed to sign it again (idempotent)
+    else:
+        voter = NonNominalVoter(
+            voting_round_id=voting_round_id,
+            legislator_id=legislator_id,
+            cryptographic_signature=ecdsa_signature,
+            raw_payload=blinded_token,
+            device_id=device_id,
+        )
+        try:
+            await vote_repository.create_non_nominal_voter(db_session, voter=voter)
+            await db_session.commit()
+        except IntegrityError:
+            await db_session.rollback()
+            raise ValueError("Error de concurrencia al persistir la autorización de identidad.")
+        
+    return signed_blinded_token_hex
+
+
+async def cast_anonymous_vote(
+    db_session: AsyncSession,
+    *,
+    voting_round_id: uuid.UUID,
+    vote_value: VoteValue,
+    ephemeral_pub: str,
+    server_signature: str,
+    vote_signature: str,
+) -> None:
+    stmt = select(VotingRound).where(VotingRound.id == voting_round_id).with_for_update(read=True)
+    result = await db_session.execute(stmt)
+    voting_round = result.scalar_one_or_none()
+    
+    if voting_round is None or voting_round.deleted_at is not None:
+        raise ValueError("Votación no encontrada.")
+
+    if voting_round.is_nominal:
+        raise ValueError("Esta votación es nominal, no puede emitir un voto secreto (anónimo).")
 
     if voting_round.status != RoundStatus.VOTING_OPEN:
         raise ValueError("La votación no se encuentra abierta.")
+        
+    if voting_round.ephemeral_public_key is None:
+        raise ValueError("La votación no posee una clave efímera de blind signature.")
 
-    attendance_stmt = select(SessionAttendance).where(
-        SessionAttendance.legislative_session_id == voting_round.legislative_session_id,
-        SessionAttendance.legislator_id == legislator_id
-    )
-    res = await db_session.execute(attendance_stmt)
-    attendance = res.scalar_one_or_none()
-    if attendance is None or attendance.status != AttendanceStatus.PRESENT:
-        raise ValueError("El legislador está ausente y no puede votar.")
+    # 1. Verify Server Blind Signature (PSS)
+    try:
+        rsa_key = RSA.import_key(voting_round.ephemeral_public_key)
+        ephemeral_pub_bytes = bytes.fromhex(ephemeral_pub)
+        server_signature_bytes = bytes.fromhex(server_signature)
+        
+        # The Android client digested the public key first, and then fed it to the PSSSigner
+        h = SHA256.new(ephemeral_pub_bytes)
+        
+        verifier = pss.new(rsa_key, salt_bytes=32)
+        verifier.verify(h, server_signature_bytes)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"Firma del servidor (blind signature) inválida: {exc}")
 
-    current_time_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-    if timestamp > current_time_ms + 5000 or timestamp < current_time_ms - settings.security.ANTI_REPLAY_WINDOW_MILLISECONDS:
-        raise ValueError("La carga útil criptográfica ha caducado (TTL superado) o viene del futuro.")
+    # 2. Verify Vote Intent Signature (ECDSA)
+    if not verify_secp256r1_signature(
+        public_key_hex=ephemeral_pub,
+        payload=vote_value.value.encode("utf-8"),
+        signature_hex=vote_signature,
+    ):
+        raise ValueError("Firma del voto inválida. No se pudo verificar con la clave efímera.")
 
-    voter = NonNominalVoter(
-        voting_round_id=voting_round_id,
-        legislator_id=legislator_id,
-        cryptographic_signature=eligibility_signature,
-        raw_payload=eligibility_payload,
-        client_timestamp=timestamp,
-        device_id=device_id,
-    )
-
+    # 3. Double Spend Protection & Persistence
     tally = NonNominalTally(
         voting_round_id=voting_round_id,
         vote_value=vote_value,
-        salt=salt,
+        ephemeral_public_key=ephemeral_pub,
+        server_signature=server_signature,
+        vote_signature=vote_signature,
     )
 
     try:
-        await vote_repository.create_non_nominal_voter_and_tally(
+        await vote_repository.create_non_nominal_tally(
             db_session,
-            voter=voter,
             tally=tally,
         )
         await db_session.commit()
     except IntegrityError:
         await db_session.rollback()
-        raise ValueError("El legislador ya ha emitido un voto para esta ronda.")
-        
-    return {"voting_round_id": voting_round_id, "legislator_id": legislator_id}
+        raise ValueError("Doble gasto detectado. Esta clave efímera ya emitió un voto.")
 
 
 async def cast_tie_breaker_vote(

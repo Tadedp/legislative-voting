@@ -6,6 +6,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 
+from Crypto.PublicKey import RSA
+
 from src.models.agenda_item import AgendaItem, ItemStatus
 from src.models.nominal_vote import VoteValue
 from src.models.non_nominal_voter import NonNominalVoter
@@ -130,6 +132,11 @@ async def create_voting_round(
         president_votes_ordinarily=president_votes_ordinarily,
         time_limit_seconds=time_limit_seconds,
     )
+    
+    key = RSA.generate(3072)
+    voting_round.ephemeral_private_key = key.export_key(format='PEM').decode('utf-8')
+    voting_round.ephemeral_public_key = key.publickey().export_key(format='PEM').decode('utf-8')
+
     return await voting_round_repository.create(db, voting_round=voting_round)
 
 async def update_voting_round(
@@ -293,8 +300,9 @@ async def proclaim_voting_round(
         )
         total_votes_cast = await db.scalar(stmt)
         
-        if aff + neg + abst != total_votes_cast:
-            raise ValueError("El recuento de votos no coincide con la cantidad de recibos de sufragio.")
+        total_tallies = aff + neg + abst
+        if total_tallies > total_votes_cast:
+            raise ValueError("Integrity error: tally votes exceed authorized participants.")
 
     total_members = await legislator_repository.count_active_legislators(db)
     quorum_present = voting_round.certified_quorum_count or voting_round.quorum_present_count or 0
@@ -373,6 +381,10 @@ async def rectify_voting_round(
         time_limit_seconds=voting_round.time_limit_seconds,
         status=RoundStatus.DRAFT,
     )
+    
+    key = RSA.generate(3072)
+    new_round.ephemeral_private_key = key.export_key(format='PEM').decode('utf-8')
+    new_round.ephemeral_public_key = key.publickey().export_key(format='PEM').decode('utf-8')
     
     await db.flush()
     return await voting_round_repository.create(db, voting_round=new_round)

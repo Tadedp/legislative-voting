@@ -30,6 +30,10 @@ export class StateSyncService {
   readonly votingRound = signal<ActiveVotingRound | null>(null);
   readonly isConnectionStable = signal<boolean>(false);
   readonly attendanceUpdated = signal<number>(0);
+  
+  // Aggregate Counters for Zero-Trust Display
+  readonly tokensIssued = signal<number>(0);
+  readonly votesReceived = signal<number>(0);
 
   private eventBuffer: OrchestratorEvent[] = [];
   private rehydrationSub: Subscription | null = null;
@@ -222,6 +226,8 @@ export class StateSyncService {
           }
           return event.data;
         });
+        this.tokensIssued.set(0);
+        this.votesReceived.set(0);
         break;
       case 'VOTING_ROUND_CLOSED':
         this.votingRound.update(current => {
@@ -253,8 +259,12 @@ export class StateSyncService {
           return { ...current, status: event.event_type === 'VOTING_ROUND_ABORTED' ? 'ABORTED' : 'VOIDED' };
         });
         break;
+      case 'NON_NOMINAL_VOTE_AUTHORIZED':
+        this.tokensIssued.update(val => val + 1);
+        break;
       case 'NOMINAL_VOTE_CAST':
       case 'NON_NOMINAL_VOTE_CAST':
+        this.votesReceived.update(val => val + 1);
         break;
       case 'QUORUM_WARNING':
         console.warn(`Quorum warning received: ${event.data?.connected}/${event.data?.minimum_required}`);

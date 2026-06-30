@@ -47,26 +47,35 @@ import { FormsModule } from '@angular/forms';
 
           <!-- TAB 2: TALLY TREE & INDIVIDUAL RECEIPT -->
           <p-tabpanel value="1">
-            <p class="mb-4 text-sm text-gray-600">Demuestra <strong>qué</strong> valores fueron emitidos. Ingrese su Salt Volátil para verificar que su voto fue incluido en la raíz de Merkle.</p>
+            <p class="mb-4 text-sm text-gray-600">Demuestra <strong>qué</strong> valores fueron emitidos. Ingrese el Hash (SHA-256) de su Llave Pública Efímera para verificar que su voto fue incluido en la raíz de Merkle.</p>
             
             <div class="mb-4">
               <p-iconField iconPosition="left">
                   <p-inputIcon styleClass="pi pi-search" />
-                  <input type="text" pInputText placeholder="Ingrese su Salt (ej. a7f9b2c4...)" 
-                         [ngModel]="searchSalt()" (ngModelChange)="searchSalt.set($event)" 
+                  <input type="text" pInputText placeholder="Ingrese su Hash SHA-256 (ej. a7f9b2c4...)" 
+                         [ngModel]="searchHash()" (ngModelChange)="searchHash.set($event)" 
                          class="w-full md:w-96 font-mono text-sm" />
               </p-iconField>
+            </div>
+            
+            <div *ngIf="tieBreaker" class="mb-4 bg-purple-50 p-4 rounded-lg border border-purple-200">
+              <h4 class="text-purple-900 font-bold mb-1"><i class="pi pi-star-fill mr-2"></i>Voto Desempate Público (Presidencia)</h4>
+              <p class="text-sm text-purple-700 mb-2">El presidente emitió el voto decisivo. Su firma criptográfica se incluyó en la raíz.</p>
+              <div class="flex justify-between items-center bg-white p-3 rounded border border-purple-100 shadow-sm">
+                <span class="font-medium text-purple-900">{{ tieBreaker.legislator_name }}</span>
+                <span class="px-3 py-1 rounded text-sm font-bold bg-purple-200 text-purple-900">{{ tieBreaker.value }}</span>
+              </div>
             </div>
 
             <p-table [value]="filteredTallies()" [paginator]="true" [rows]="10" styleClass="p-datatable-striped">
               <ng-template pTemplate="header">
                 <tr>
                   <th>Voto Emitido</th>
-                  <th>Salt (Truncado)</th>
+                  <th>Hash Efímero (Truncado)</th>
                 </tr>
               </ng-template>
               <ng-template pTemplate="body" let-tally>
-                <tr [ngClass]="{'bg-yellow-100 border-2 border-yellow-400': searchSalt() && tally.salt.includes(searchSalt())}">
+                <tr [ngClass]="{'bg-yellow-100 border-2 border-yellow-400': searchHash() && tally.ephemeralHash.includes(searchHash())}">
                   <td>
                     <span class="px-2 py-1 rounded text-sm font-bold"
                       [ngClass]="{
@@ -77,8 +86,8 @@ import { FormsModule } from '@angular/forms';
                       {{ tally.value }}
                     </span>
                   </td>
-                  <td class="font-mono text-xs" [ngClass]="searchSalt() && tally.salt.includes(searchSalt()) ? 'text-gray-900 font-bold' : 'text-gray-500'">
-                    {{ searchSalt() && tally.salt.includes(searchSalt()) ? tally.salt : (tally.salt | slice:0:8) + '...' + (tally.salt | slice:-8) }}
+                  <td class="font-mono text-xs" [ngClass]="searchHash() && tally.ephemeralHash.includes(searchHash()) ? 'text-gray-900 font-bold' : 'text-gray-500'">
+                    {{ searchHash() && tally.ephemeralHash.includes(searchHash()) ? tally.ephemeralHash : (tally.ephemeralHash | slice:0:8) + '...' + (tally.ephemeralHash | slice:-8) }}
                   </td>
                 </tr>
               </ng-template>
@@ -97,16 +106,17 @@ import { FormsModule } from '@angular/forms';
 export class SecretLedgerComponent {
   @Input() participants: any[] = [];
   @Input() tallies: any[] = [];
+  @Input() tieBreaker: any = null;
 
-  searchSalt = signal<string>('');
+  searchHash = signal<string>('');
 
   filteredTallies = computed(() => {
-    const term = this.searchSalt().trim().toLowerCase();
+    const term = this.searchHash().trim().toLowerCase();
     if (!term) return this.tallies;
     
     // Ensure the matched row stays visible or is pushed to top.
-    const matched = this.tallies.filter(t => t.salt.toLowerCase().includes(term));
-    const unmatched = this.tallies.filter(t => !t.salt.toLowerCase().includes(term));
+    const matched = this.tallies.filter(t => t.ephemeralHash.toLowerCase().includes(term));
+    const unmatched = this.tallies.filter(t => !t.ephemeralHash.toLowerCase().includes(term));
     return [...matched, ...unmatched];
   });
 }

@@ -39,6 +39,24 @@ data class DeviceEnrollRequest(
  * Auth is via cryptographic signature — no device token header.
  */
 @Serializable
+data class VoteAuthorizeRequest(
+    @SerialName("legislator_id")
+    val legislatorId: String,
+    @SerialName("voting_round_id")
+    val votingRoundId: String,
+    @SerialName("blinded_token")
+    val blindedToken: String,
+    @SerialName("ecdsa_signature")
+    val ecdsaSignature: String
+)
+
+/**
+ * POST /votes/nominal
+ *
+ * Submits a plaintext signed vote for a nominal (roll-call) voting round.
+ * Auth is via cryptographic signature — no device token header.
+ */
+@Serializable
 data class NominalVoteRequest(
     @SerialName("raw_payload_string")
     val rawPayloadString: String,
@@ -48,35 +66,28 @@ data class NominalVoteRequest(
 )
 
 /**
- * POST /votes/non-nominal
+ * POST /votes/cast
  *
- * Submits a double-envelope encrypted vote for a non-nominal (secret) round.
- * Auth is via cryptographic signature — no device token header.
+ * Submits an anonymous vote using blind signatures (Phase 2).
+ * Strictly contains NO legislator_id or biometric signature.
  */
 @Serializable
-data class NonNominalVoteData(
+data class VoteCastRequest(
+    @SerialName("voting_round_id")
+    val votingRoundId: String,
     @SerialName("vote_value")
     val voteValue: String,
-    @SerialName("salt")
-    val salt: String
+    @SerialName("ephemeral_pub")
+    val ephemeralPub: String,
+    @SerialName("server_signature")
+    val serverSignature: String,
+    @SerialName("vote_signature")
+    val voteSignature: String
 )
-
 @Serializable
-data class NonNominalVoteRequest(
-    @SerialName("eligibility_payload")
-    val eligibilityPayload: String,
-    @SerialName("eligibility_signature")
-    val eligibilitySignature: String,
-    @SerialName("vote_data")
-    val voteData: NonNominalVoteData
-)
-
-@Serializable
-data class TieBreakerVoteRequest(
-    @SerialName("raw_payload_string")
-    val rawPayloadString: String,
-    @SerialName("cryptographic_signature")
-    val cryptographicSignature: String
+data class VoteAuthorizeResponse(
+    @SerialName("signed_blinded_token")
+    val signedBlindedToken: String
 )
 
 // ---------------------------------------------------------------------------
@@ -132,6 +143,8 @@ data class ActiveVotingRoundInfo(
     val presidentVotesOrdinarily: Boolean = true,
     @SerialName("time_limit_seconds")
     val timeLimitSeconds: Int? = null,
+    @SerialName("ephemeral_public_key")
+    val ephemeralPublicKey: String? = null,
     @SerialName("agenda_item")
     val agendaItem: AgendaItemInfo
 )
@@ -175,15 +188,7 @@ data class DeviceEnrollResponse(
     val legislatorId: String
 )
 
-/**
- * Response from POST /votes/nominal and POST /votes/non-nominal.
- */
-@Serializable
-data class VoteResponse(
-    @SerialName("event_id")
-    val eventId: String,
-    val status: String? = null
-)
+
 
 // ---------------------------------------------------------------------------
 // WebSocket Event Models

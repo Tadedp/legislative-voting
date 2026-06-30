@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import edu.um.voterterminal.R
 import edu.um.voterterminal.presentation.VotingState
+import edu.um.voterterminal.domain.AuthorizationState
 
 // -- Stage Badge Color Palette --
 private val BadgeGeneralColor = Color(0xFF1565C0)
@@ -68,6 +69,8 @@ fun VotingScreen(
     presidentVotesOrdinarily: Boolean = true,
     remainingTimeSeconds: Int? = null,
     volatileSalt: String? = null,
+    authorizationState: AuthorizationState = AuthorizationState.Idle,
+    onAuthorizeClicked: () -> Unit = {},
     onVoteClicked: (voteValue: String) -> Unit
 ) {
     // Scenario C: President whose ordinary vote is NOT required
@@ -234,7 +237,7 @@ fun VotingScreen(
                     ) {
                         Button(
                             onClick = { onVoteClicked("AFFIRMATIVE") },
-                            enabled = !isLocked,
+                            enabled = !isLocked && authorizationState is AuthorizationState.Authorized,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(80.dp),
@@ -246,7 +249,7 @@ fun VotingScreen(
 
                         Button(
                             onClick = { onVoteClicked("NEGATIVE") },
-                            enabled = !isLocked,
+                            enabled = !isLocked && authorizationState is AuthorizationState.Authorized,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(80.dp),
@@ -260,7 +263,7 @@ fun VotingScreen(
                     if (state.allowsAbstentions) {
                         Button(
                             onClick = { onVoteClicked("ABSTENTION") },
-                            enabled = !isLocked,
+                            enabled = !isLocked && authorizationState is AuthorizationState.Authorized,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(80.dp),
@@ -269,6 +272,21 @@ fun VotingScreen(
                         ) {
                             Text(stringResource(R.string.abstain), style = MaterialTheme.typography.titleLarge)
                         }
+                    }
+                }
+                
+                if (authorizationState !is AuthorizationState.Authorized && !presidentWaiting) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = onAuthorizeClicked,
+                        enabled = !isLocked && authorizationState is AuthorizationState.Required,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Acreditar Identidad para Votar", style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }

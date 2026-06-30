@@ -12,12 +12,15 @@ class NominalVote(BaseModel):
 
 class AnonymousVote(BaseModel):
     value: str
-    salt: str
+    ephemeral_pub: str
+    server_signature: str
+    vote_signature: str
 
 class VerifiedParticipant(BaseModel):
     legislator_id: str
     legislator_name: str
     public_key_pem: str
+    blinded_token: str
     signature: str
     timestamp: int
 
@@ -48,3 +51,4 @@ class TallyPayload(BaseModel):
         Field(default_factory=list),
     ]
     tie_breaker_vote: TieBreakerVote | None = None
+    ephemeral_public_key: str | None = None

@@ -11,6 +11,8 @@ export interface VerificationResult {
   contractEligibilityRoot?: string;
   signaturesValid: boolean;
   errorLog?: string;
+  eligibilityCount?: number;
+  tallyCount?: number;
 }
 
 import { environment } from '../../../environments/environment';
@@ -42,6 +44,10 @@ export class AuditVerificationService {
       
       const roundData = await contract['rounds'](snapshot.voting_round_id);
       
+      if (!roundData.isProclaimed) {
+        throw new Error("This voting round has not been notarized on the blockchain.");
+      }
+
       if (snapshot.is_nominal !== roundData.isNominal) {
         throw new Error("Round type mismatch between on-chain data and local snapshot.");
       }
@@ -90,9 +96,10 @@ export class AuditVerificationService {
         }
       } else {
         const tallyHashes = snapshot.anonymous_votes.map((vote: any) => {
+          vote.ephemeralHash = ethers.sha256(ethers.getBytes("0x" + vote.ephemeral_pub)).replace("0x", "");
           const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
-            ['string', 'string', 'string'],
-            [snapshot.voting_round_id, vote.value, vote.salt]
+            ['string', 'string', 'string', 'string', 'string'],
+            [snapshot.voting_round_id, vote.value, vote.ephemeral_pub, vote.server_signature, vote.vote_signature]
           );
           return ethers.keccak256(ethers.concat(["0x00", encoded]));
         });
@@ -109,18 +116,22 @@ export class AuditVerificationService {
 
         const eligHashes = snapshot.verified_participants.map((participant: any) => {
           const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
-            ['string', 'string', 'string', 'string', 'string', 'uint256'],
-            ["ELIGIBILITY", snapshot.voting_round_id, participant.legislator_name, participant.public_key_pem, participant.signature, participant.timestamp]
+            ['string', 'string', 'string', 'string', 'string', 'string', 'uint256'],
+            ["ELIGIBILITY", snapshot.voting_round_id, participant.legislator_name, participant.public_key_pem, participant.blinded_token, participant.signature, participant.timestamp]
           );
           return ethers.keccak256(ethers.concat(["0x00", encoded]));
         });
         localEligibilityRoot = this.buildMerkleTree(eligHashes);
         
         this.progress.set(50);
-        // Verify Signatures in batches
+        // Verify Phase 1 Auth Signatures
         const sigResult = await this.verifySignaturesBatched(snapshot.verified_participants, false, snapshot);
         if (!sigResult) throw new Error("Signature verification failed for anonymous voters.");
         
+        // Verify Phase 2 Anonymous Signatures
+        const anonSigResult = await this.verifyAnonymousVotesBatched(snapshot.anonymous_votes, snapshot);
+        if (!anonSigResult) throw new Error("Zero-Trust blind signature verification failed for anonymous votes.");
+
         if (snapshot.tie_breaker_vote) {
             const tbResult = await this.verifySingleSignature(snapshot.tie_breaker_vote, true, snapshot);
             if (!tbResult) throw new Error("Signature verification failed for tie-breaker vote.");
@@ -145,7 +156,9 @@ export class AuditVerificationService {
         contractNominalRoot: onChainRound.nominalMerkleRoot,
         contractTallyRoot: onChainRound.tallyMerkleRoot,
         contractEligibilityRoot: onChainRound.eligibilityMerkleRoot,
-        signaturesValid: true
+        signaturesValid: true,
+        eligibilityCount: snapshot.verified_participants?.length || 0,
+        tallyCount: snapshot.anonymous_votes?.length || 0,
       });
 
       this.progress.set(100);
@@ -155,7 +168,7 @@ export class AuditVerificationService {
       console.error(e);
       this.auditState.set('FAILED');
       this.verificationDetails.set({
-         isNominal: snapshot.is_nominal,
+         isNominal: snapshot?.is_nominal,
          signaturesValid: false,
          errorLog: e.message || "Unknown error occurred during verification"
       });
@@ -165,7 +178,6 @@ export class AuditVerificationService {
   private buildMerkleTree(leafHashes: string[]): string {
     if (leafHashes.length === 0) return ethers.ZeroHash;
 
-    // CRITICAL: Strict byte-order sorting, avoiding localeCompare unpredictability
     let nodes = [...leafHashes].sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
 
     while (nodes.length > 1) {
@@ -175,7 +187,6 @@ export class AuditVerificationService {
           const pair = [nodes[i], nodes[i]];
           nextLevel.push(ethers.keccak256(ethers.concat(["0x01", pair[0], pair[1]])));
         } else {
-          // CRITICAL: Sort pair before hashing
           const pair = [nodes[i], nodes[i+1]].sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
           nextLevel.push(ethers.keccak256(ethers.concat(["0x01", pair[0], pair[1]])));
         }
@@ -192,40 +203,41 @@ export class AuditVerificationService {
       const promises = chunk.map(p => this.verifySingleSignature(p, isNominal, snapshot));
       const results = await Promise.all(promises);
       if (results.some(res => !res)) return false;
-      
-      // Yield to main thread to maintain UI responsiveness
       await new Promise(resolve => setTimeout(resolve, 0));
     }
     return true;
   }
 
+  private pemToArrayBuffer(pem: string): ArrayBuffer {
+    const pemContents = pem.replace(/-----BEGIN [A-Z ]+-----/, "").replace(/-----END [A-Z ]+-----/, "").replace(/\s/g, "");
+    const binaryStr = window.atob(pemContents);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
   private async verifySingleSignature(participant: any, isNominal: boolean, snapshot: any): Promise<boolean> {
     try {
-      const payloadObj: any = {};
-      // Insert in alphabetical order to guarantee JSON.stringify sorting
-      payloadObj.legislator_id = participant.legislator_id;
-      payloadObj.timestamp = participant.timestamp;
-      
-      if (isNominal) {
-        payloadObj.vote_value = participant.value;
-      }
-      
-      payloadObj.voting_round_id = snapshot.voting_round_id;
-      
-      const payloadBytes = new TextEncoder().encode(JSON.stringify(payloadObj));
+      let payloadBytes: Uint8Array;
 
-      const pemHeader = "-----BEGIN PUBLIC KEY-----";
-      const pemFooter = "-----END PUBLIC KEY-----";
-      const pemContents = participant.public_key_pem.replace(pemHeader, "").replace(pemFooter, "").replace(/\s/g, "");
-      const binaryDerString = window.atob(pemContents);
-      const binaryDer = new Uint8Array(binaryDerString.length);
-      for (let i = 0; i < binaryDerString.length; i++) {
-        binaryDer[i] = binaryDerString.charCodeAt(i);
+      if (isNominal) {
+        const payloadObj: any = {};
+        payloadObj.legislator_id = participant.legislator_id;
+        payloadObj.timestamp = participant.timestamp;
+        payloadObj.vote_value = participant.value;
+        payloadObj.voting_round_id = snapshot.voting_round_id;
+        payloadBytes = new TextEncoder().encode(JSON.stringify(payloadObj));
+      } else {
+        // For phase 1 verified_participants, payload is the raw hex bytes of blinded_token
+        payloadBytes = ethers.getBytes("0x" + participant.blinded_token) as Uint8Array;
       }
       
+      const keyBuffer = this.pemToArrayBuffer(participant.public_key_pem);
       const key = await window.crypto.subtle.importKey(
         "spki",
-        binaryDer,
+        keyBuffer,
         { name: "ECDSA", namedCurve: "P-256" },
         true,
         ["verify"]
@@ -237,10 +249,80 @@ export class AuditVerificationService {
         { name: "ECDSA", hash: { name: "SHA-256" } },
         key,
         p1363Sig as BufferSource,
-        payloadBytes
+        payloadBytes as BufferSource
       );
     } catch (e) {
       console.error("Signature verification failed:", e);
+      return false;
+    }
+  }
+
+  private async verifyAnonymousVotesBatched(anonymousVotes: any[], snapshot: any): Promise<boolean> {
+    if (!snapshot.ephemeral_public_key) throw new Error("Missing server ephemeral public key.");
+
+    const serverRsaKey = await window.crypto.subtle.importKey(
+      "spki",
+      this.pemToArrayBuffer(snapshot.ephemeral_public_key),
+      { name: "RSA-PSS", hash: "SHA-256" },
+      true,
+      ["verify"]
+    );
+
+    const chunkSize = 10;
+    for (let i = 0; i < anonymousVotes.length; i += chunkSize) {
+      const chunk = anonymousVotes.slice(i, i + chunkSize);
+      const promises = chunk.map(vote => this.verifyAnonymousVote(vote, serverRsaKey));
+      const results = await Promise.all(promises);
+      if (results.some(res => !res)) return false;
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    return true;
+  }
+
+  private async verifyAnonymousVote(vote: any, serverRsaKey: CryptoKey): Promise<boolean> {
+    try {
+      // 1. Verify server_signature (RSA-PSS) against SHA256(ephemeral_pub)
+      const ephemeralPubBytes = ethers.getBytes("0x" + vote.ephemeral_pub) as Uint8Array;
+      const ephemeralHash = await window.crypto.subtle.digest("SHA-256", ephemeralPubBytes as BufferSource);
+
+      const serverSigBytes = ethers.getBytes("0x" + vote.server_signature) as Uint8Array;
+      const isServerValid = await window.crypto.subtle.verify(
+        { name: "RSA-PSS", saltLength: 32 },
+        serverRsaKey,
+        serverSigBytes as BufferSource,
+        ephemeralHash as BufferSource
+      );
+      if (!isServerValid) {
+        console.error("Server signature invalid for vote:", vote.ephemeral_pub);
+        return false;
+      }
+
+      // 2. Verify vote_signature (ECDSA) against vote_value
+      const voteValueBytes = new TextEncoder().encode(vote.value);
+      const ecdsaKeyBytes = ethers.getBytes("0x" + vote.ephemeral_pub) as Uint8Array;
+      const voterKey = await window.crypto.subtle.importKey(
+        "raw",
+        ecdsaKeyBytes as BufferSource,
+        { name: "ECDSA", namedCurve: "P-256" },
+        true,
+        ["verify"]
+      );
+
+      const p1363Sig = this.transcodeDERtoP1363(vote.vote_signature);
+      const isVoteValid = await window.crypto.subtle.verify(
+        { name: "ECDSA", hash: { name: "SHA-256" } },
+        voterKey,
+        p1363Sig as BufferSource,
+        voteValueBytes as BufferSource
+      );
+      if (!isVoteValid) {
+        console.error("Vote signature invalid for vote:", vote.ephemeral_pub);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.error("Anonymous vote verification failed:", e);
       return false;
     }
   }

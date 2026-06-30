@@ -26,6 +26,34 @@ async def create_non_nominal_voter_and_tally(
     db.add(tally)
     await db.flush()
 
+async def create_non_nominal_tally(
+    db: AsyncSession,
+    *,
+    tally: NonNominalTally,
+) -> None:
+    db.add(tally)
+    await db.flush()
+
+async def create_non_nominal_voter(
+    db: AsyncSession,
+    *,
+    voter: NonNominalVoter,
+) -> None:
+    db.add(voter)
+    await db.flush()
+
+async def get_non_nominal_voter(
+    db: AsyncSession,
+    voting_round_id: uuid.UUID,
+    legislator_id: uuid.UUID,
+) -> NonNominalVoter | None:
+    stmt = select(NonNominalVoter).where(
+        NonNominalVoter.voting_round_id == voting_round_id,
+        NonNominalVoter.legislator_id == legislator_id,
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
 async def count_non_nominal_tallies_by_round(
     db: AsyncSession,
     voting_round_id: uuid.UUID,

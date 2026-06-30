@@ -128,6 +128,14 @@ class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         server_default=func.now(),
         nullable=False,
     )
+    ephemeral_public_key: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    ephemeral_private_key: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
 
     agenda_item: Mapped["AgendaItem"] = relationship(
         "AgendaItem",
