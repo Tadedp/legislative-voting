@@ -24,6 +24,8 @@ export interface ActiveVotingRound {
   time_limit_seconds?: number;
   status: RoundStatus;
   certified_quorum_count?: number;
+  tokens_issued?: number;
+  votes_received?: number;
 }
 
 export interface LegislativeSession {
@@ -43,6 +45,6 @@ export interface CurrentStateResponse {
 // WebSocket Event Structure
 export interface OrchestratorEvent {
   event_type: 'SESSION_STATUS_CHANGED' | 'AGENDA_ITEM_UPDATED' | 'VOTING_ROUND_OPENED' | 'VOTING_ROUND_CLOSED' | 'VOTING_ROUND_ABORTED' | 'VOTING_ROUND_RESOLVED' | 'VOTING_ROUND_TIED' | 'VOTING_ROUND_VOIDED' | 'NOMINAL_VOTE_CAST' | 'NON_NOMINAL_VOTE_CAST' | 'NON_NOMINAL_VOTE_AUTHORIZED' | 'TIE_BREAKER_VOTE_CAST' | 'QUORUM_WARNING' | 'ATTENDANCE_UPDATED';
-  data: any; // Mapped to the specific event delta
+  data: any; // Mapped to the specific event delta. For NON_NOMINAL_VOTE_AUTHORIZED: { current_tokens: number }. For *_VOTE_CAST: { current_votes: number }.
   timestamp: string;
 }

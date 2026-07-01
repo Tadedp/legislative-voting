@@ -152,6 +152,14 @@ export class StateSyncService {
           this.activeItem.set(response.active_agenda_item);
           this.votingRound.set(response.active_voting_round);
           
+          if (response.active_voting_round) {
+            this.tokensIssued.set(response.active_voting_round.tokens_issued || 0);
+            this.votesReceived.set(response.active_voting_round.votes_received || 0);
+          } else {
+            this.tokensIssued.set(0);
+            this.votesReceived.set(0);
+          }
+          
           if (this.eventBuffer.length > 0) {
             this.eventBuffer.forEach(event => this.handleEvent(event, true));
             this.eventBuffer = [];
@@ -260,11 +268,15 @@ export class StateSyncService {
         });
         break;
       case 'NON_NOMINAL_VOTE_AUTHORIZED':
-        this.tokensIssued.update(val => val + 1);
+        if (event.data?.current_tokens !== undefined) {
+          this.tokensIssued.update(current => Math.max(current, event.data.current_tokens));
+        }
         break;
       case 'NOMINAL_VOTE_CAST':
       case 'NON_NOMINAL_VOTE_CAST':
-        this.votesReceived.update(val => val + 1);
+        if (event.data?.current_votes !== undefined) {
+          this.votesReceived.update(current => Math.max(current, event.data.current_votes));
+        }
         break;
       case 'QUORUM_WARNING':
         console.warn(`Quorum warning received: ${event.data?.connected}/${event.data?.minimum_required}`);

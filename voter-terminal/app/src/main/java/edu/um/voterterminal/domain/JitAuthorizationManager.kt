@@ -88,7 +88,7 @@ class JitAuthorizationManager @Inject constructor(
         }
     }
 
-    suspend fun submitSignature(signatureHex: String) {
+    suspend fun submitSignature(canonicalJson: String, signatureHex: String) {
         val currentState = _authorizationState.value
         if (currentState !is AuthorizationState.Required) return
         
@@ -98,9 +98,7 @@ class JitAuthorizationManager @Inject constructor(
 
         try {
             val request = VoteAuthorizeRequest(
-                legislatorId = legislatorId,
-                votingRoundId = currentState.votingRoundId,
-                blindedToken = currentState.blindedTokenHex,
+                rawPayloadString = canonicalJson,
                 ecdsaSignature = signatureHex
             )
             
@@ -113,6 +111,16 @@ class JitAuthorizationManager @Inject constructor(
             _authorizationState.value = AuthorizationState.Authorized
         } catch (e: Exception) {
             _authorizationState.value = AuthorizationState.Error(e.message ?: "Failed to authorize")
+        }
+    }
+
+    /**
+     * Recovers from an Error state by re-evaluating the current global voting state.
+     * This effectively transitions the state back to Required (or Authorized) if the round is still active.
+     */
+    fun retryAuthorization() {
+        if (_authorizationState.value is AuthorizationState.Error) {
+            checkAuthorization(sessionManager.state.value)
         }
     }
 }

@@ -28,6 +28,7 @@ class BlindSignatureManager @Inject constructor() {
     private var ephemeralPrivateKey: PrivateKey? = null
     private var ephemeralPublicKeyHex: String? = null
     private var bcBlindingFactor: java.math.BigInteger? = null
+    private var cachedBlindedTokenHex: String? = null
     
     // Store the signed blinded payload from the server
     private var signedBlindedPayload: String? = null
@@ -37,6 +38,10 @@ class BlindSignatureManager @Inject constructor() {
      * Generates a new ephemeral ECDSA key internally.
      */
     fun prepareBlindedToken(votingRoundId: String, serverPublicKeyPem: String): Pair<String, String> {
+        if (votingRoundId == activeVotingRoundId && ephemeralPublicKeyHex != null && cachedBlindedTokenHex != null) {
+            return Pair(cachedBlindedTokenHex!!, ephemeralPublicKeyHex!!)
+        }
+        
         activeVotingRoundId = votingRoundId
         
         // 1. Generate Ephemeral ECDSA secp256r1 key
@@ -48,8 +53,8 @@ class BlindSignatureManager @Inject constructor() {
         val ephemeralPublicKeyBytes = keyPair.public.encoded
         this.ephemeralPublicKeyHex = ephemeralPublicKeyBytes.toHexString()
         
-        // 2. Digest the public key
-        val token = MessageDigest.getInstance("SHA-256").digest(ephemeralPublicKeyBytes)
+        // 2. We do NOT pre-digest the public key because PSSSigner internally digests it.
+        val token = ephemeralPublicKeyBytes
         
         // 3. Load Server RSA Public Key from PEM
         val rsaPublicKey = loadRsaPublicKey(serverPublicKeyPem)
@@ -70,7 +75,10 @@ class BlindSignatureManager @Inject constructor() {
         pssSigner.update(token, 0, token.size)
         val blindedTokenBytes = pssSigner.generateSignature()
         
-        return Pair(blindedTokenBytes.toHexString(), this.ephemeralPublicKeyHex!!)
+        val blindedTokenHex = blindedTokenBytes.toHexString()
+        this.cachedBlindedTokenHex = blindedTokenHex
+        
+        return Pair(blindedTokenHex, this.ephemeralPublicKeyHex!!)
     }
     
     fun setAuthorizedPayload(votingRoundId: String, payload: String) {
@@ -120,6 +128,7 @@ class BlindSignatureManager @Inject constructor() {
         ephemeralPrivateKey = null
         ephemeralPublicKeyHex = null
         bcBlindingFactor = null
+        cachedBlindedTokenHex = null
         signedBlindedPayload = null
         activeVotingRoundId = null
         System.gc()

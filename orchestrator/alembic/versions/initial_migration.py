@@ -5,7 +5,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'eb718bbab758'
+revision: str = '15ec91a5d9da'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -132,6 +132,7 @@ def upgrade() -> None:
     sa.Column('tie_breaker_signature', sa.Text(), nullable=True),
     sa.Column('tie_breaker_client_timestamp', sa.BigInteger(), nullable=True),
     sa.Column('tie_breaker_device_id', sa.UUID(), nullable=True),
+    sa.Column('tie_breaker_raw_payload', sa.Text(), nullable=True),
     sa.Column('opened_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

@@ -71,6 +71,7 @@ fun VotingScreen(
     volatileSalt: String? = null,
     authorizationState: AuthorizationState = AuthorizationState.Idle,
     onAuthorizeClicked: () -> Unit = {},
+    onRetryAuthorizeClicked: () -> Unit = {},
     onVoteClicked: (voteValue: String) -> Unit
 ) {
     // Scenario C: President whose ordinary vote is NOT required
@@ -277,16 +278,30 @@ fun VotingScreen(
                 
                 if (authorizationState !is AuthorizationState.Authorized && !presidentWaiting) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = onAuthorizeClicked,
-                        enabled = !isLocked && authorizationState is AuthorizationState.Required,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(60.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Acreditar Identidad para Votar", style = MaterialTheme.typography.titleMedium)
+                    if (authorizationState is AuthorizationState.Error) {
+                        Button(
+                            onClick = onRetryAuthorizeClicked,
+                            enabled = !isLocked,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(60.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Reintentar Acreditación", style = MaterialTheme.typography.titleMedium)
+                        }
+                    } else {
+                        Button(
+                            onClick = onAuthorizeClicked,
+                            enabled = !isLocked && authorizationState is AuthorizationState.Required,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(60.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Acreditar Identidad para Votar", style = MaterialTheme.typography.titleMedium)
+                        }
                     }
                 }
             }

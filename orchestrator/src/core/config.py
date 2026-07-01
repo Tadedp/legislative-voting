@@ -80,6 +80,7 @@ class SecuritySettings(BaseSettings):
     ARGON2_PARALLELISM: int = 2
     CORS_ALLOWED_ORIGINS: str = "http://localhost:3000"
     EXPECTED_APK_HASH: str = ""
+    EPHEMERAL_KEY_ENCRYPTION_KEY: str = ""
 
     @property
     def CORS_ALLOWED_ORIGINS_LIST(self) -> list[str]:

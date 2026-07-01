@@ -28,16 +28,19 @@ import { TooltipModule } from 'primeng/tooltip';
       <div *ngIf="auditState === 'VERIFIED'">
         <p-message severity="success" text="VERIFICADO: Integridad Matemática Garantizada." styleClass="w-full justify-start text-lg"></p-message>
         
-        <div *ngIf="details && !details.isNominal && details.eligibilityCount !== undefined && details.tallyCount !== undefined" class="mt-4">
-          <div *ngIf="details.eligibilityCount >= details.tallyCount" 
+        <div *ngIf="details && !details.isNominal && details.eligibilityCount !== undefined && details.anonymousTallyCount !== undefined" class="mt-4">
+          <div *ngIf="details.eligibilityCount >= details.anonymousTallyCount" 
                class="bg-green-600 text-white p-3 rounded shadow-md font-semibold text-center flex items-center justify-center cursor-help"
                pTooltip="Las diferencias ocurren si legisladores se acreditan (Fase 1) pero no emiten su voto (Inacción Física). La integridad se mantiene siempre que Tokens >= Votos." 
                tooltipPosition="bottom">
-            <i class="pi pi-shield mr-2 text-xl"></i> Integridad del Sistema: 0 votos forjados detectados ({{ details.tallyCount }} votos / {{ details.eligibilityCount }} acreditaciones)
+            <i class="pi pi-shield mr-2 text-xl"></i> Integridad del Sistema: 0 votos forjados detectados ({{ details.anonymousTallyCount }} votos anónimos / {{ details.eligibilityCount }} acreditaciones)
           </div>
-          <div *ngIf="details.eligibilityCount < details.tallyCount" 
+          <div *ngIf="details.eligibilityCount < details.anonymousTallyCount" 
                class="bg-red-600 text-white p-3 rounded shadow-md font-semibold text-center flex items-center justify-center">
-            <i class="pi pi-times-circle mr-2 text-xl"></i> VIOLACIÓN DE INTEGRIDAD: Más votos en urna ({{ details.tallyCount }}) que acreditaciones ({{ details.eligibilityCount }}).
+            <i class="pi pi-times-circle mr-2 text-xl"></i> VIOLACIÓN DE INTEGRIDAD: Más votos en urna ({{ details.anonymousTallyCount }}) que acreditaciones ({{ details.eligibilityCount }}).
+          </div>
+          <div *ngIf="details.hasTieBreaker" class="mt-2 bg-blue-600 text-white p-2 rounded shadow-md font-semibold text-center flex items-center justify-center">
+            <i class="pi pi-info-circle mr-2 text-lg"></i> Voto de Desempate (Público) inyectado exitosamente en la urna.
           </div>
         </div>
 

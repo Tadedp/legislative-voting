@@ -1,4 +1,4 @@
-import { Component, inject, computed, effect } from '@angular/core';
+import { Component, inject, computed, effect, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
@@ -9,7 +9,8 @@ import { ToastModule } from 'primeng/toast';
 import { StateSyncService } from '../../../core/services/state-sync.service';
 import { SecretariatService, SessionAttendanceEnriched } from '../../../core/services/secretariat.service';
 import { Subject, of } from 'rxjs';
-import { concatMap, catchError, tap } from 'rxjs/operators';
+import { concatMap, catchError, tap, debounceTime, switchMap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-quorum-matrix',
@@ -23,6 +24,7 @@ export class QuorumMatrixComponent {
   private readonly stateSync = inject(StateSyncService);
   private readonly secretariatService = inject(SecretariatService);
   private readonly messageService = inject(MessageService);
+  private readonly destroyRef = inject(DestroyRef);
 
   // Computed signal to determine if the matrix is locked
   readonly isVotingOpen = computed(() => this.stateSync.votingRound()?.status === 'VOTING_OPEN');
@@ -38,15 +40,35 @@ export class QuorumMatrixComponent {
   ];
 
   private updateSubject = new Subject<{record: SessionAttendanceEnriched, sessionId: string}>();
+  private attendanceUpdate$ = new Subject<string>();
 
   constructor() {
     effect(() => {
       this.stateSync.attendanceUpdated();
       const session = this.stateSync.sessionState();
       if (session) {
-        this.loadAttendance(session.id);
+        this.attendanceUpdate$.next(session.id);
       } else {
         this.attendanceList = [];
+      }
+    });
+
+    this.attendanceUpdate$.pipe(
+      tap(() => this.isLoading = true),
+      debounceTime(500),
+      switchMap(sessionId => this.secretariatService.getSessionAttendance(sessionId).pipe(
+        catchError((err) => {
+          this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo cargar la matriz de quórum.' });
+          return of([]);
+        })
+      )),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (data) => {
+        if (data.length > 0 || this.attendanceList.length === 0) {
+            this.attendanceList = data;
+        }
+        this.isLoading = false;
       }
     });
 
@@ -66,22 +88,14 @@ export class QuorumMatrixComponent {
             return of(null);
           })
         )
-      )
+      ),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe();
   }
 
   loadAttendance(sessionId: string) {
     this.isLoading = true;
-    this.secretariatService.getSessionAttendance(sessionId).subscribe({
-      next: (data) => {
-        this.attendanceList = data;
-        this.isLoading = false;
-      },
-      error: (err) => {
-        this.isLoading = false;
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo cargar la matriz de quórum.' });
-      }
-    });
+    this.attendanceUpdate$.next(sessionId);
   }
 
   onStatusChange(record: SessionAttendanceEnriched) {

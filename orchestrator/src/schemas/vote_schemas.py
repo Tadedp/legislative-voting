@@ -38,9 +38,7 @@ class VotingRoundTallyResponse(BaseModel):
     suggested_result: str
 
 class VoteAuthorizeRequest(BaseModel):
-    legislator_id: uuid.UUID
-    voting_round_id: uuid.UUID
-    blinded_token: str
+    raw_payload_string: str
     ecdsa_signature: str
 
 class VoteAuthorizeResponse(BaseModel):

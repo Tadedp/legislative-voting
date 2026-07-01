@@ -40,12 +40,8 @@ data class DeviceEnrollRequest(
  */
 @Serializable
 data class VoteAuthorizeRequest(
-    @SerialName("legislator_id")
-    val legislatorId: String,
-    @SerialName("voting_round_id")
-    val votingRoundId: String,
-    @SerialName("blinded_token")
-    val blindedToken: String,
+    @SerialName("raw_payload_string")
+    val rawPayloadString: String,
     @SerialName("ecdsa_signature")
     val ecdsaSignature: String
 )

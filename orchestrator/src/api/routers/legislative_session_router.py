@@ -24,7 +24,7 @@ from src.schemas.legislative_session_schemas import (
 from src.schemas.voting_round_schemas import VotingRoundWithItemResponse
 from src.schemas.agenda_item_schemas import AgendaItemResponse
 from src.services import legislative_session_service
-from src.repositories import agenda_item_repository
+from src.repositories import agenda_item_repository, vote_repository
 
 legislative_session_router = APIRouter(
     prefix="/legislative-sessions",
@@ -87,12 +87,17 @@ async def get_current_legislative_session(
         agenda_item = await agenda_item_repository.get_by_id(
             db_session, active_round.agenda_item_id,
         )
+        tokens_issued = await vote_repository.count_tokens_issued(db_session, active_round.id)
+        votes_received = await vote_repository.count_votes_received(db_session, active_round.id)
+
         active_voting_round_dto = VotingRoundWithItemResponse.model_validate(
             {
                 **VotingRoundWithItemResponse.model_validate(
                     active_round,
                 ).model_dump(exclude={"agenda_item"}),
                 "agenda_item": AgendaItemResponse.model_validate(agenda_item),
+                "tokens_issued": tokens_issued,
+                "votes_received": votes_received,
             }
         )
 

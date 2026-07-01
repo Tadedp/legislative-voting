@@ -373,20 +373,36 @@ class VotingViewModel @Inject constructor(
         
         viewModelScope.launch {
             try {
-                // Convert hex blinded token back to bytes for signing
-                val payloadBytes = currentState.blindedTokenHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                val timestamp = System.currentTimeMillis()
+                val legislatorId = securePrefsManager.legislatorId
+                    ?: throw IllegalStateException("Legislator ID missing")
+
+                val canonicalJson = PayloadCanonicalizer.buildAuthorizationPayload(
+                    votingRoundId = currentState.votingRoundId,
+                    legislatorId = legislatorId,
+                    blindedToken = currentState.blindedTokenHex,
+                    timestamp = timestamp
+                )
                 
                 val signature = biometricSigner.authenticateAndSign(
                     activity,
-                    payloadBytes,
+                    canonicalJson.toByteArray(Charsets.UTF_8),
                     "Acreditar",
                     "Identidad"
                 )
                 
-                jitAuthorizationManager.submitSignature(signature)
+                jitAuthorizationManager.submitSignature(canonicalJson, signature)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
+    }
+
+    /**
+     * Resets the JIT authorization state if it is currently trapped in an error,
+     * allowing the user to attempt biometric authorization again.
+     */
+    fun retryAuthorization() {
+        jitAuthorizationManager.retryAuthorization()
     }
 }

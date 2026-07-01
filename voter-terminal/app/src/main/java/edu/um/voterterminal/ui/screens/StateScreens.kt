@@ -71,7 +71,8 @@ fun IdleScreen() {
 fun DebateIdleScreen(
     state: VotingState.DebateIdle,
     authorizationState: AuthorizationState = AuthorizationState.Idle,
-    onAuthorizeClicked: () -> Unit = {}
+    onAuthorizeClicked: () -> Unit = {},
+    onRetryAuthorizeClicked: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -133,7 +134,19 @@ fun DebateIdleScreen(
             }
         }
         
-        if (authorizationState is AuthorizationState.Required) {
+        if (authorizationState is AuthorizationState.Error) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onRetryAuthorizeClicked,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Reintentar Acreditación", style = MaterialTheme.typography.titleLarge)
+            }
+        } else if (authorizationState is AuthorizationState.Required) {
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = onAuthorizeClicked,

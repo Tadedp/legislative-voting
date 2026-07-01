@@ -6,8 +6,10 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 
+from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 
+from src.core.config import settings
 from src.models.agenda_item import AgendaItem, ItemStatus
 from src.models.nominal_vote import VoteValue
 from src.models.non_nominal_voter import NonNominalVoter
@@ -134,7 +136,12 @@ async def create_voting_round(
     )
     
     key = RSA.generate(3072)
-    voting_round.ephemeral_private_key = key.export_key(format='PEM').decode('utf-8')
+    
+    # Encrypt the ephemeral private key at rest using Fernet
+    pem_private = key.export_key(format='PEM')
+    f = Fernet(settings.security.EPHEMERAL_KEY_ENCRYPTION_KEY.encode('utf-8'))
+    voting_round.ephemeral_private_key = f.encrypt(pem_private).decode('utf-8')
+    
     voting_round.ephemeral_public_key = key.publickey().export_key(format='PEM').decode('utf-8')
 
     return await voting_round_repository.create(db, voting_round=voting_round)
@@ -383,7 +390,12 @@ async def rectify_voting_round(
     )
     
     key = RSA.generate(3072)
-    new_round.ephemeral_private_key = key.export_key(format='PEM').decode('utf-8')
+    
+    # Encrypt the ephemeral private key at rest using Fernet
+    pem_private = key.export_key(format='PEM')
+    f = Fernet(settings.security.EPHEMERAL_KEY_ENCRYPTION_KEY.encode('utf-8'))
+    new_round.ephemeral_private_key = f.encrypt(pem_private).decode('utf-8')
+    
     new_round.ephemeral_public_key = key.publickey().export_key(format='PEM').decode('utf-8')
     
     await db.flush()

@@ -56,6 +56,7 @@ async def cast_nominal_vote(
             raw_payload_string=body.raw_payload_string,
             cryptographic_signature=body.cryptographic_signature,
         )
+        current_votes = await vote_repository.count_votes_received(db_session, vote.voting_round_id)
     except ValueError as exc:
         raise ConflictException(str(exc))
 
@@ -69,6 +70,7 @@ async def cast_nominal_vote(
             "voting_round_id": str(vote.voting_round_id),
             "legislator_id": str(vote.legislator_id),
             "vote_value": vote.vote_value.value,
+            "current_votes": current_votes,
         },
     )
 
@@ -90,13 +92,12 @@ async def authorize_vote(
     body: VoteAuthorizeRequest,
 ) -> VoteAuthorizeResponse:
     try:
-        signed_token = await vote_service.authorize_vote(
+        signed_token, voting_round_id = await vote_service.authorize_vote(
             db_session,
-            legislator_id=body.legislator_id,
-            voting_round_id=body.voting_round_id,
-            blinded_token=body.blinded_token,
+            raw_payload_string=body.raw_payload_string,
             ecdsa_signature=body.ecdsa_signature,
         )
+        current_tokens = await vote_repository.count_tokens_issued(db_session, voting_round_id)
     except ValueError as exc:
         raise ConflictException(str(exc))
 
@@ -104,7 +105,8 @@ async def authorize_vote(
         manager.broadcast,
         "NON_NOMINAL_VOTE_AUTHORIZED",
         {
-            "voting_round_id": str(body.voting_round_id),
+            "voting_round_id": str(voting_round_id),
+            "current_tokens": current_tokens,
         },
     )
 
@@ -135,6 +137,7 @@ async def cast_anonymous_vote(
             server_signature=body.server_signature,
             vote_signature=body.vote_signature,
         )
+        current_votes = await vote_repository.count_votes_received(db_session, body.voting_round_id)
     except ValueError as exc:
         raise ConflictException(str(exc))
 
@@ -143,6 +146,7 @@ async def cast_anonymous_vote(
         "NON_NOMINAL_VOTE_CAST",
         {
             "voting_round_id": str(body.voting_round_id),
+            "current_votes": current_votes,
         },
     )
 

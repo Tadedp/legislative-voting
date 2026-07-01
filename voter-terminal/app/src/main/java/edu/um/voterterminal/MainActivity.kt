@@ -39,6 +39,7 @@ class MainActivity : FragmentActivity() {
         // Security Mitigation: Tapjacking Protection
         // Prevents malicious overlays from capturing touch events
         window.decorView.filterTouchesWhenObscured = true
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
 
         enableEdgeToEdge()
         setContent {
@@ -74,6 +75,7 @@ class MainActivity : FragmentActivity() {
 
                 val remainingTime by viewModel.remainingTimeSeconds.collectAsState()
                 val volatileSalt by viewModel.volatileSaltString.collectAsState()
+                val authorizationState by viewModel.authorizationState.collectAsState()
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -84,7 +86,8 @@ class MainActivity : FragmentActivity() {
                         activity = this@MainActivity,
                         viewModel = viewModel,
                         remainingTimeSeconds = remainingTime,
-                        volatileSalt = volatileSalt
+                        volatileSalt = volatileSalt,
+                        authorizationState = authorizationState
                     )
                 }
             }
@@ -98,7 +101,8 @@ fun VoterTerminalRouter(
     activity: FragmentActivity,
     viewModel: VotingViewModel,
     remainingTimeSeconds: Int?,
-    volatileSalt: String?
+    volatileSalt: String?,
+    authorizationState: AuthorizationState
 ) {
     Crossfade(targetState = uiState, label = "Router") { state ->
         when (state) {
@@ -116,7 +120,12 @@ fun VoterTerminalRouter(
                 IdleScreen()
             }
             is VotingState.DebateIdle -> {
-                DebateIdleScreen(state = state)
+                DebateIdleScreen(
+                    state = state,
+                    authorizationState = authorizationState,
+                    onAuthorizeClicked = { viewModel.authorizeIdentity(activity) },
+                    onRetryAuthorizeClicked = { viewModel.retryAuthorization() }
+                )
             }
             is VotingState.VotingRoundActive -> {
                 // Presidential identity comparison for UI forking
@@ -128,6 +137,9 @@ fun VoterTerminalRouter(
                     isPresident = isPresident,
                     presidentVotesOrdinarily = state.presidentVotesOrdinarily,
                     remainingTimeSeconds = remainingTimeSeconds,
+                    authorizationState = authorizationState,
+                    onAuthorizeClicked = { viewModel.authorizeIdentity(activity) },
+                    onRetryAuthorizeClicked = { viewModel.retryAuthorization() },
                     onVoteClicked = { voteValue ->
                         viewModel.submitVote(activity, voteValue)
                     }

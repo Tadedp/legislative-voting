@@ -9,6 +9,7 @@ class NominalVote(BaseModel):
     value: str
     signature: str
     timestamp: int
+    raw_payload: str
 
 class AnonymousVote(BaseModel):
     value: str
@@ -31,6 +32,7 @@ class TieBreakerVote(BaseModel):
     value: str
     signature: str
     timestamp: int
+    raw_payload: str
 
 class TallyPayload(BaseModel):
     voting_round_id: str

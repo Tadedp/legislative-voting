@@ -45,4 +45,18 @@ object PayloadCanonicalizer {
         val jsonObject = JsonObject(sortedMap)
         return Json.encodeToString(jsonObject)
     }
+
+    /**
+     * Creates the canonical payload for a JIT Authorization.
+     */
+    fun buildAuthorizationPayload(votingRoundId: String, legislatorId: String, blindedToken: String, timestamp: Long): String {
+        val sortedMap = sortedMapOf(
+            "blinded_token" to JsonPrimitive(blindedToken),
+            "legislator_id" to JsonPrimitive(legislatorId),
+            "timestamp" to JsonPrimitive(timestamp),
+            "voting_round_id" to JsonPrimitive(votingRoundId)
+        )
+        val jsonObject = JsonObject(sortedMap)
+        return Json.encodeToString(jsonObject)
+    }
 }

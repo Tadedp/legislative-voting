@@ -79,5 +79,7 @@ class VotingRoundWithItemResponse(BaseModel):
     closed_at: datetime | None = None
     created_at: datetime
     ephemeral_public_key: str | None = None
+    tokens_issued: int | None = None
+    votes_received: int | None = None
 
     agenda_item: AgendaItemResponse

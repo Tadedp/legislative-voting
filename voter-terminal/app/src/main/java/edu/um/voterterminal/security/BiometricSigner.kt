@@ -5,6 +5,9 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.security.Signature
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -43,8 +46,8 @@ class BiometricSigner @Inject constructor(
         val cryptoObject = BiometricPrompt.CryptoObject(signature)
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Confirm Vote")
-            .setSubtitle("Confirmando voto: $voteValue para $specificReference")
+            .setTitle("Validar Identidad")
+            .setSubtitle("Validar identidad para $specificReference")
             .setNegativeButtonText("Cancel")
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .setConfirmationRequired(true)
@@ -61,22 +64,24 @@ class BiometricSigner @Inject constructor(
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
-                    try {
-                        val activeSignature = result.cryptoObject?.signature
-                            ?: throw IllegalStateException("Signature object not found in CryptoObject")
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val activeSignature = result.cryptoObject?.signature
+                                ?: throw IllegalStateException("Signature object not found in CryptoObject")
 
-                        // Update signature with the canonical payload bytes
-                        activeSignature.update(payloadBytes)
+                            // Update signature with the canonical payload bytes
+                            activeSignature.update(payloadBytes)
 
-                        // Generate the signature
-                        val signatureBytes = activeSignature.sign()
+                            // Generate the signature
+                            val signatureBytes = activeSignature.sign()
 
-                        // Convert to lowercase Hex string for Orchestrator bytes.fromhex() compatibility
-                        val hexSignature = signatureBytes.toHexString()
-                        continuation.resume(hexSignature)
+                            // Convert to lowercase Hex string for Orchestrator bytes.fromhex() compatibility
+                            val hexSignature = signatureBytes.toHexString()
+                            continuation.resume(hexSignature)
 
-                    } catch (e: Exception) {
-                        continuation.resumeWithException(e)
+                        } catch (e: Exception) {
+                            continuation.resumeWithException(e)
+                        }
                     }
                 }
 

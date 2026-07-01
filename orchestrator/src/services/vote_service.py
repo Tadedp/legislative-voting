@@ -2,12 +2,14 @@ import json
 import uuid
 from datetime import datetime, timezone
 
+from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pss
 from Crypto.Hash import SHA256
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from src.core.config import settings
 from src.core.security import verify_secp256r1_signature, extract_hex_from_pem_public_key
@@ -121,11 +123,34 @@ async def cast_nominal_vote(
 async def authorize_vote(
     db_session: AsyncSession,
     *,
-    legislator_id: uuid.UUID,
-    voting_round_id: uuid.UUID,
-    blinded_token: str,
+    raw_payload_string: str,
     ecdsa_signature: str,
-) -> str:
+) -> tuple[str, uuid.UUID]:
+    try:
+        data = json.loads(raw_payload_string)
+    except json.JSONDecodeError:
+        raise ValueError("Payload JSON inválido.")
+        
+    legislator_id_str = data.get("legislator_id")
+    voting_round_id_str = data.get("voting_round_id")
+    blinded_token = data.get("blinded_token")
+    raw_timestamp = data.get("timestamp")
+    
+    if not all([legislator_id_str, voting_round_id_str, blinded_token, raw_timestamp]):
+        raise ValueError("Faltan campos en el payload criptográfico.")
+        
+    try:
+        timestamp = int(raw_timestamp)
+    except (TypeError, ValueError):
+        raise ValueError("El timestamp debe ser un número entero válido.")
+        
+    legislator_id = uuid.UUID(legislator_id_str)
+    voting_round_id = uuid.UUID(voting_round_id_str)
+
+    current_time_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    if timestamp > current_time_ms + 5000 or timestamp < current_time_ms - settings.security.ANTI_REPLAY_WINDOW_MILLISECONDS:
+        raise ValueError("La carga útil criptográfica ha caducado (TTL superado) o viene del futuro.")
+
     public_key_hex, device_id = await _get_device_hex_key(db_session, legislator_id)
 
     try:
@@ -135,7 +160,7 @@ async def authorize_vote(
 
     if not verify_secp256r1_signature(
         public_key_hex=public_key_hex,
-        payload=blinded_token_bytes,
+        payload=raw_payload_string.encode("utf-8"),
         signature_hex=ecdsa_signature,
     ):
         raise ValueError("Falló la verificación de la firma criptográfica.")
@@ -158,9 +183,17 @@ async def authorize_vote(
 
     # Apply raw RSA math (S = m^d mod n)
     try:
-        rsa_key = RSA.import_key(voting_round.ephemeral_private_key)
-        m = int(blinded_token, 16)
-        s = rsa_key._decrypt(m)
+        def _decrypt_operations():
+            # Decrypt the ephemeral private key in RAM
+            f = Fernet(settings.security.EPHEMERAL_KEY_ENCRYPTION_KEY.encode('utf-8'))
+            decrypted_pem = f.decrypt(voting_round.ephemeral_private_key.encode('utf-8'))
+            
+            rsa_key = RSA.import_key(decrypted_pem)
+            m_int = int(blinded_token, 16)
+            s_val = rsa_key._decrypt(m_int)
+            return s_val
+
+        s = await run_in_threadpool(_decrypt_operations)
         signed_blinded_token_hex = format(s, 'x')
         # Ensure even length hex string
         if len(signed_blinded_token_hex) % 2 != 0:
@@ -188,7 +221,7 @@ async def authorize_vote(
             await db_session.rollback()
             raise ValueError("Error de concurrencia al persistir la autorización de identidad.")
         
-    return signed_blinded_token_hex
+    return signed_blinded_token_hex, voting_round_id
 
 
 async def cast_anonymous_vote(
@@ -353,6 +386,7 @@ async def cast_tie_breaker_vote(
     voting_round.tie_breaker_signature = cryptographic_signature
     voting_round.tie_breaker_device_id = device_id
     voting_round.tie_breaker_client_timestamp = timestamp
+    voting_round.tie_breaker_raw_payload = raw_payload_string
 
     if vote_value == VoteValue.AFFIRMATIVE:
         voting_round.result = "PASSED"

@@ -23,6 +23,7 @@ class ConnectionManager:
         self._token_to_legislator_id: dict[str, uuid.UUID] = {}
         self._active_dashboards: set[WebSocket] = set()
         self._queues: dict[WebSocket, asyncio.Queue[Any]] = {}
+        self._tasks: dict[WebSocket, asyncio.Task[Any]] = {}
 
     async def connect(
         self,
@@ -37,8 +38,10 @@ class ConnectionManager:
         self._queues[websocket] = queue
         
         worker_task = asyncio.create_task(self._worker(websocket, queue))
+        self._tasks[websocket] = worker_task
         background_tasks.add(worker_task)
         worker_task.add_done_callback(background_tasks.discard)
+        worker_task.add_done_callback(lambda t: self._tasks.pop(websocket, None))
         
         if device_token and legislator_id:
             if device_token in self._active_edge_devices:
@@ -65,13 +68,13 @@ class ConnectionManager:
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection."""
+        task = self._tasks.pop(websocket, None)
+        if task is not None and not task.done():
+            task.cancel()
+
         try:
             if websocket in self._queues:
-                queue = self._queues.pop(websocket)
-                try:
-                    queue.put_nowait(None)
-                except asyncio.QueueFull:
-                    pass
+                self._queues.pop(websocket)
         except (KeyError, ValueError):
             pass
 

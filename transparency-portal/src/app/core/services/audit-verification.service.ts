@@ -12,7 +12,8 @@ export interface VerificationResult {
   signaturesValid: boolean;
   errorLog?: string;
   eligibilityCount?: number;
-  tallyCount?: number;
+  anonymousTallyCount?: number;
+  hasTieBreaker?: boolean;
 }
 
 import { environment } from '../../../environments/environment';
@@ -148,6 +149,14 @@ export class AuditVerificationService {
         throw new Error("Merkle Tree roots do not match the on-chain Polygon anchor.");
       }
 
+      const eligibilityCount = snapshot.verified_participants?.length || 0;
+      const anonymousCount = snapshot.anonymous_votes?.length || 0;
+      const hasTieBreaker = !!snapshot.tie_breaker_vote;
+
+      if (!snapshot.is_nominal && anonymousCount > eligibilityCount) {
+        throw new Error("Zero-Trust Invariant Broken: Tally votes exceed authorized eligibility participants.");
+      }
+
       this.verificationDetails.set({
         isNominal: snapshot.is_nominal,
         nominalRoot: localNominalRoot,
@@ -157,8 +166,9 @@ export class AuditVerificationService {
         contractTallyRoot: onChainRound.tallyMerkleRoot,
         contractEligibilityRoot: onChainRound.eligibilityMerkleRoot,
         signaturesValid: true,
-        eligibilityCount: snapshot.verified_participants?.length || 0,
-        tallyCount: snapshot.anonymous_votes?.length || 0,
+        eligibilityCount: eligibilityCount,
+        anonymousTallyCount: anonymousCount,
+        hasTieBreaker: hasTieBreaker,
       });
 
       this.progress.set(100);
@@ -209,7 +219,13 @@ export class AuditVerificationService {
   }
 
   private pemToArrayBuffer(pem: string): ArrayBuffer {
+    if (!pem || typeof pem !== 'string' || pem.trim() === '') {
+      throw new Error("Missing public key for verification");
+    }
     const pemContents = pem.replace(/-----BEGIN [A-Z ]+-----/, "").replace(/-----END [A-Z ]+-----/, "").replace(/\s/g, "");
+    if (!pemContents) {
+      throw new Error("Missing public key for verification");
+    }
     const binaryStr = window.atob(pemContents);
     const bytes = new Uint8Array(binaryStr.length);
     for (let i = 0; i < binaryStr.length; i++) {
@@ -223,12 +239,10 @@ export class AuditVerificationService {
       let payloadBytes: Uint8Array;
 
       if (isNominal) {
-        const payloadObj: any = {};
-        payloadObj.legislator_id = participant.legislator_id;
-        payloadObj.timestamp = participant.timestamp;
-        payloadObj.vote_value = participant.value;
-        payloadObj.voting_round_id = snapshot.voting_round_id;
-        payloadBytes = new TextEncoder().encode(JSON.stringify(payloadObj));
+        if (!participant.raw_payload) {
+          throw new Error("Missing raw_payload for signature verification.");
+        }
+        payloadBytes = new TextEncoder().encode(participant.raw_payload);
       } else {
         // For phase 1 verified_participants, payload is the raw hex bytes of blinded_token
         payloadBytes = ethers.getBytes("0x" + participant.blinded_token) as Uint8Array;
@@ -281,16 +295,15 @@ export class AuditVerificationService {
 
   private async verifyAnonymousVote(vote: any, serverRsaKey: CryptoKey): Promise<boolean> {
     try {
-      // 1. Verify server_signature (RSA-PSS) against SHA256(ephemeral_pub)
+      // 1. Verify server_signature (RSA-PSS) against ephemeral_pub
       const ephemeralPubBytes = ethers.getBytes("0x" + vote.ephemeral_pub) as Uint8Array;
-      const ephemeralHash = await window.crypto.subtle.digest("SHA-256", ephemeralPubBytes as BufferSource);
 
       const serverSigBytes = ethers.getBytes("0x" + vote.server_signature) as Uint8Array;
       const isServerValid = await window.crypto.subtle.verify(
         { name: "RSA-PSS", saltLength: 32 },
         serverRsaKey,
         serverSigBytes as BufferSource,
-        ephemeralHash as BufferSource
+        ephemeralPubBytes as BufferSource
       );
       if (!isServerValid) {
         console.error("Server signature invalid for vote:", vote.ephemeral_pub);

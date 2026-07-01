@@ -77,3 +77,23 @@ async def count_nominal_votes_by_round(
     )
     result = await db.execute(stmt)
     return {row[0]: row[1] for row in result.all()}
+
+async def count_tokens_issued(
+    db: AsyncSession,
+    voting_round_id: uuid.UUID,
+) -> int:
+    stmt = select(func.count()).select_from(NonNominalVoter).where(NonNominalVoter.voting_round_id == voting_round_id)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none() or 0
+
+async def count_votes_received(
+    db: AsyncSession,
+    voting_round_id: uuid.UUID,
+) -> int:
+    stmt_non_nominal = select(func.count()).select_from(NonNominalTally).where(NonNominalTally.voting_round_id == voting_round_id)
+    stmt_nominal = select(func.count()).select_from(NominalVote).where(NominalVote.voting_round_id == voting_round_id)
+    
+    res_non_nominal = await db.execute(stmt_non_nominal)
+    res_nominal = await db.execute(stmt_nominal)
+    
+    return (res_non_nominal.scalar_one_or_none() or 0) + (res_nominal.scalar_one_or_none() or 0)

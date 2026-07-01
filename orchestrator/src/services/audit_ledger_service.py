@@ -66,7 +66,8 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
                 public_key_pem=pem,
                 value=vote.vote_value.name,
                 signature=vote.cryptographic_signature,
-                timestamp=vote.client_timestamp
+                timestamp=vote.client_timestamp,
+                raw_payload=vote.raw_payload
             ))
     else:
         # Tally
@@ -115,13 +116,16 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
             res_pres = await db.execute(stmt_pres)
             pres = res_pres.scalar_one_or_none()
             if pres:
-                if round_obj.tie_breaker_device_id:
-                    d_stmt = select(Device).where(Device.id == round_obj.tie_breaker_device_id)
-                    d_res = await db.execute(d_stmt)
-                    dev = d_res.scalar_one_or_none()
-                else:
-                    dev = None
-                pem = dev.public_key_pem if dev else ""
+                if not round_obj.tie_breaker_device_id or not round_obj.tie_breaker_client_timestamp:
+                    raise ValueError("Invalid Tie-Breaker: Missing cryptographic timestamp or device mapping")
+
+                d_stmt = select(Device).where(Device.id == round_obj.tie_breaker_device_id)
+                d_res = await db.execute(d_stmt)
+                dev = d_res.scalar_one_or_none()
+                if not dev:
+                    raise ValueError("Invalid Tie-Breaker: Missing cryptographic timestamp or device mapping")
+                
+                pem = dev.public_key_pem
                 
                 tie_breaker_vote = TieBreakerVote(
                     legislator_id=str(pres.id),
@@ -129,7 +133,8 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
                     public_key_pem=pem,
                     value=round_obj.tie_breaker_vote_value,
                     signature=round_obj.tie_breaker_signature,
-                    timestamp=round_obj.tie_breaker_client_timestamp if round_obj.tie_breaker_client_timestamp else (int(round_obj.closed_at.timestamp() * 1000) if round_obj.closed_at else int(round_obj.created_at.timestamp() * 1000))
+                    timestamp=round_obj.tie_breaker_client_timestamp,
+                    raw_payload=round_obj.tie_breaker_raw_payload
                 )
                 tallies[round_obj.tie_breaker_vote_value] += 1
 
@@ -150,7 +155,6 @@ async def extract_snapshot_data(db: AsyncSession, round_id: uuid.UUID) -> TallyP
 async def anchor_and_snapshot_round(db: AsyncSession, round_id: uuid.UUID, is_nominal: bool):
     payload = await extract_snapshot_data(db, round_id)
     
-    # 2. Cryptographic Generation
     nominal_root = "0x" + ("00" * 32)
     tally_root = "0x" + ("00" * 32)
     eligibility_root = "0x" + ("00" * 32)
@@ -177,7 +181,6 @@ async def anchor_and_snapshot_round(db: AsyncSession, round_id: uuid.UUID, is_no
         ]
         eligibility_root = MerkleTreeGenerator.generate_tree_root(e_leaves)
 
-    # 3. Web3 Anchoring (Double-Spend Protected)
     rpc_url = settings.blockchain.POLYGON_AMOY_RPC_URL
     private_key = settings.blockchain.ORCHESTRATOR_WALLET_PRIVATE_KEY
     contract_address = settings.blockchain.CONTRACT_ADDRESS
@@ -187,8 +190,18 @@ async def anchor_and_snapshot_round(db: AsyncSession, round_id: uuid.UUID, is_no
         raise ValueError("Configuración de blockchain incompleta.")
 
     notary = BlockchainNotaryService(rpc_url, private_key, contract_address, abi_path)
-    
-    for _ in range(3):
+
+    for attempt in range(3):
+        if attempt > 0:
+            try:
+                round_data = await notary.contract.functions.rounds(str(round_id)).call()
+                is_proclaimed = round_data[5]
+                if is_proclaimed:
+                    receipt = await notary.recover_from_event_logs(str(round_id))
+                    break
+            except Exception:
+                pass
+                
         try:
             receipt = await notary.proclaim_round(
                 round_id=str(round_id),
@@ -199,8 +212,7 @@ async def anchor_and_snapshot_round(db: AsyncSession, round_id: uuid.UUID, is_no
                 eligibility_root=eligibility_root
             )
             break
-        except Exception as retry_e:
-            print(f"Blockchain anchoring attempt failed: {retry_e}")
+        except Exception:
             await asyncio.sleep(5)
     else:
         raise Exception("Blockchain anchoring failed after 3 attempts.")

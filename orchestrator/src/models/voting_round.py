@@ -115,6 +115,10 @@ class VotingRound(UUIDPrimaryKeyMixin, SoftDeleteMixin, Base):
         ForeignKey("devices.id"),
         nullable=True,
     )
+    tie_breaker_raw_payload: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
     opened_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
